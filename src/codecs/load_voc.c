@@ -353,12 +353,16 @@ static Uint32 voc_read(SDL_RWops *src, vs_t *v, Uint8 *buf, SDL_AudioSpec *spec)
         if (v->size == ST_SIZE_WORD)
         {
             #if (SDL_BYTEORDER == SDL_BIG_ENDIAN)
+			#ifdef __MORPHOS__
+			SDL_CopyAndSwap16((APTR)buf, (APTR)buf, v->rest /2);
+			#else
             Uint16 *samples = (Uint16 *)buf;
             for (; v->rest > 0; v->rest -= 2)
             {
                 *samples = SDL_SwapLE16(*samples);
                 samples++;
             }
+			#endif
             #endif
             done >>= 1;
         }
