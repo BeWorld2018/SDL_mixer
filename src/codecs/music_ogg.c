@@ -34,7 +34,13 @@
 #elif defined(OGG_USE_TREMOR)
 #include <tremor/ivorbisfile.h>
 #else
+#if defined(__MORPHOS__) && defined(USE_VORBISLIB)
+#include <proto/exec.h>
+#include <libraries/vorbisfile.h>
+extern struct Library *VorbisFileBase;
+#else
 #include <vorbis/vorbisfile.h>
+#endif
 #endif
 
 
@@ -44,7 +50,11 @@ typedef struct {
     int (*ov_clear)(OggVorbis_File *vf);
     vorbis_info *(*ov_info)(OggVorbis_File *vf,int link);
     vorbis_comment *(*ov_comment)(OggVorbis_File *vf,int link);
+#if defined(__MORPHOS__) && defined(USE_VORBISLIB)
+	int (*ov_open_callbacks)(void *datasource, OggVorbis_File *vf, const char *initial, long ibytes, ov_callbacks *callbacks);
+#else
     int (*ov_open_callbacks)(void *datasource, OggVorbis_File *vf, const char *initial, long ibytes, ov_callbacks callbacks);
+#endif
     ogg_int64_t (*ov_pcm_total)(OggVorbis_File *vf,int i);
 #ifdef OGG_USE_TREMOR
     long (*ov_read)(OggVorbis_File *vf,char *buffer,int length, int *bitstream);
@@ -91,6 +101,23 @@ static int OGG_Load(void)
             return -1;
         }
 #endif
+#if defined(__MORPHOS__) && defined(USE_VORBISLIB)
+		if (VorbisFileBase == NULL)
+			return -1;
+
+		vorbis.ov_clear = *(void**)((long)(VorbisFileBase) - 28);
+		vorbis.ov_info = *(void**)((long)(VorbisFileBase) - 154);
+		vorbis.ov_open_callbacks = *(void**)((long)(VorbisFileBase) - 40);
+		vorbis.ov_pcm_total = *(void**)((long)(VorbisFileBase) - 94);
+		vorbis.ov_read = *(void**)((long)(VorbisFileBase) - 166);
+		vorbis.ov_time_seek = *(void**)((long)(VorbisFileBase) - 604);
+	    vorbis.ov_comment = *(void**)((long)(VorbisFileBase) - 160);
+	    vorbis.ov_pcm_seek = *(void**)((long)(VorbisFileBase) - 118);
+	    vorbis.ov_time_tell = *(void**)((long)(VorbisFileBase) - 142);
+		vorbis.ov_pcm_tell = *(void**)((long)(VorbisFileBase) - 148);
+		vorbis.ov_time_total = *(void**)((long)(VorbisFileBase) - 100);
+		
+		#else
         FUNCTION_LOADER(ov_clear, int (*)(OggVorbis_File *))
         FUNCTION_LOADER(ov_info, vorbis_info *(*)(OggVorbis_File *,int))
         FUNCTION_LOADER(ov_comment, vorbis_comment *(*)(OggVorbis_File *,int))
@@ -109,6 +136,7 @@ static int OGG_Load(void)
 #endif
         FUNCTION_LOADER(ov_pcm_seek, int (*)(OggVorbis_File *,ogg_int64_t))
         FUNCTION_LOADER(ov_pcm_tell, ogg_int64_t (*)(OggVorbis_File *))
+#endif
     }
     ++vorbis.loaded;
 
@@ -255,7 +283,11 @@ static void *OGG_CreateFromRW(SDL_RWops *src, int freesrc)
     callbacks.seek_func = sdl_seek_func;
     callbacks.tell_func = sdl_tell_func;
 
-    if (vorbis.ov_open_callbacks(src, &music->vf, NULL, 0, callbacks) < 0) {
+#if defined(__MORPHOS__) && defined(USE_VORBISLIB)
+    if (vorbis.ov_open_callbacks(src, &music->vf, NULL, 0, &callbacks) < 0) {
+#else
+    if (vorbis.ov_open_callbacks(src, &music->vf, NULL, 0, callbacks) < 0) {		
+#endif
         SDL_SetError("Not an Ogg Vorbis audio stream");
         SDL_free(music);
         return NULL;

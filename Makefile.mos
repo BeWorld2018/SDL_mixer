@@ -1,0 +1,109 @@
+# Makefile to build the SDL2_mixer library
+# 
+CDEFS   = -D__MORPHOS_SHAREDLIBS  -DHAVE_SNPRINTF -DHAVE_UNISTD_H -DHAVE_SETBUF -DHAVE_FORK  \
+	    -DMUSIC_WAV -DMUSIC_OGG -DUSE_VORBISLIB -DMUSIC_MID_TIMIDITY -DMUSIC_MOD_MIKMOD  -DMUSIC_FLAC -DMUSIC_MP3_MPG123
+
+CC      = ppc-morphos-gcc-10 -noixemul 
+LIBS_EXT = -L/usr/local/lib -lflac -lmikmod -lmpg123 -lm -lc
+
+INCLUDE = -I/usr/local/include/SDL2 -I. -I/usr/local/include -IMorphOS/sdk -I./include -I./src/ -I./src/codecs
+CFLAGS  =  -mresident32 -O2 -mcpu=750 -mtune=7450 -Wno-pointer-sign -fno-strict-aliasing -Wall -ffast-math $(INCLUDE)  $(CDEFS)
+
+AR	= ppc-morphos-ar
+
+AMIGADATE = $(shell date +"%-d.%-m.%Y")
+
+ECHE = echo -e
+BOLD = \033[1m
+NRML = \033[22m
+
+COMPILING = @$(ECHE) "compiling $(BOLD)$@$(NRML)..."
+LINKING = @$(ECHE) "linking $(BOLD)$@$(NRML)..."
+STRIPPING = @$(ECHE) "stripping $(BOLD)$@$(NRML)..."
+ARCHIVING = @$(ECHE) "archiving $(BOLD)$@$(NRML)..."
+HEADERING = @$(ECHE) "creating headers files $(BOLD)$@$(NRML)..."
+
+TARGET  = libSDL2_mixer.a
+LIBRARY = sdl2_mixer.library
+
+SOURCES = \
+	src/mixer.c \
+	src/music.c \
+	src/utils.c \
+	src/effect_stereoreverse.c \
+	src/effects_internal.c \
+	src/effect_position.c \
+	src/codecs/load_aiff.c \
+	src/codecs/load_voc.c \
+	src/codecs/mp3utils.c \
+	src/codecs/music_cmd.c \
+	src/codecs/music_flac.c \
+	src/codecs/music_fluidsynth.c \
+	src/codecs/music_mad.c \
+	src/codecs/music_mikmod.c \
+	src/codecs/music_modplug.c \
+	src/codecs/music_mpg123.c \
+	src/codecs/music_nativemidi.c \
+	src/codecs/music_opus.c \
+	src/codecs/music_ogg.c \
+	src/codecs/music_timidity.c \
+	src/codecs/music_wav.c \
+	src/codecs/music_xmp.c \
+	src/codecs/timidity/common.c src/codecs/timidity/instrum.c src/codecs/timidity/mix.c src/codecs/timidity/output.c \
+	src/codecs/timidity/playmidi.c src/codecs/timidity/readmidi.c src/codecs/timidity/resample.c \
+	src/codecs/timidity/tables.c src/codecs/timidity/timidity.c 
+		 	
+
+CORESOURCES = MorphOS/*.c
+COREOBJECTS = $(shell echo $(CORESOURCES) | sed -e 's,\.c,\.o,g')
+
+OBJECTS = $(shell echo $(SOURCES) | sed -e 's,\.c,\.o,g')
+
+all: $(LIBRARY) sdklibs
+
+headers:
+	$(HEADERING)
+	@cvinclude.pl --fd=MorphOS/sdk/fd/sdl2_mixer_lib.fd --clib=MorphOS/sdk/clib/sdl2_mixer_protos.h --proto=MorphOS/sdk/proto/sdl2_mixer.h
+	@cvinclude.pl --fd=MorphOS/sdk/fd/sdl2_mixer_lib.fd --clib=MorphOS/sdk/clib/sdl2_mixer_protos.h --inline=MorphOS/sdk/ppcinline/sdl2_mixer.h
+
+sdklibs:
+	@cd MorphOS/devenv; if ! $(MAKE) all; then exit 1; fi;
+
+sdk: sdklibs
+	cp include/SDL_mixer.h /usr/local/include/SDL2
+	cp MorphOS/devenv/lib/libSDL2_mixer.a /usr/local/lib/libSDL2_mixer.a
+	cp MorphOS/devenv/lib/libb32/libSDL2_mixer.a /usr/local/lib/libb32/libSDL2_mixer.a
+
+install: $(LIBRARY)
+	@cp $(LIBRARY) LIBS:
+	flushlib $(LIBRARY)
+
+MorphOS/MIX_library.o: MorphOS/MIX_library.c MorphOS/MIX_library.h MorphOS/MIX_stubs.h
+	$(COMPILING)
+	$(CC) -mcpu=750 $(INCLUDE) -Wall -fno-strict-aliasing -D__AMIGADATE__=\"$(AMIGADATE)\" -DAROS_ALMOST_COMPATIBLE -o $@ -c $*.c
+
+src/music.o: src/music.c
+	$(CC) $(CFLAGS) -O0 -o $@ -c $^
+	
+$(TARGET): $(OBJECTS)
+	$(ARCHIVING)
+	@$(AR) crvs $@ $^
+
+$(LIBRARY): $(TARGET) $(COREOBJECTS)
+	$(LINKING)
+	$(CC) -nostartfiles -mresident32 -Wl,-Map=sdl2_mixer.map $(COREOBJECTS) -o $@.db -L. -lSDL2_mixer -L/usr/local/lib -lSDL2 -lm $(LIBS_EXT)
+	$(STRIPPING)
+	@ppc-morphos-strip -o $@ --remove-section=.comment $@.db
+
+playwave: sdklibs playwave.c
+	$(CC) -O2 -Wall playwave.c -o $@ $(INCLUDE) -DUSE_INLINE_STDARG  -LMorphOS/devenv/lib -L/usr/local/lib -lSDL2_mixer -lSDL2
+
+playmus: sdklibs playmus.c
+	$(CC) -O2 -Wall playmus.c -o $@ $(INCLUDE) -DUSE_INLINE_STDARG -LMorphOS/devenv/lib -L/usr/local/lib -lSDL2_mixer -lSDL2
+
+clean:
+	rm -f $(LIBRARY) $(TARGET) $(OBJECTS) $(COREOBJECTS) *.db *.s
+	rm -rf MorphOS/devenv/*.o morphos/devenv/lib morphos/devenv/*.s
+
+dump:
+	ppc-morphos-objdump --disassemble-all --reloc $(LIBRARY).db >$(LIBRARY).s

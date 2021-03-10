@@ -72,7 +72,7 @@
 /* You could specify a complete path, e.g. "/etc/timidity.cfg", and
    then specify the library directory in the configuration file. */
 #ifndef TIMIDITY_CFG
-#define TIMIDITY_CFG "timidity.cfg"
+#define TIMIDITY_CFG "LIBS:timidity/timidity.cfg"
 #endif
 
 /* These affect general volume */
