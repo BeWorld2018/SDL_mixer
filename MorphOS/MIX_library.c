@@ -256,8 +256,7 @@ struct Library *LIB_Open(void)
 
 /*	if (LibBase->Alloc == 0)
 	{
-		if (/*((SDL2Base = OpenLibrary("sdl2.library",  53)) != NULL)
-			&&*/ ((VorbisFileBase = OpenLibrary("vorbisfile.library",  2)) != NULL))
+		if (((VorbisFileBase = OpenLibrary("vorbisfile.library",  2)) != NULL))
 		{
 */
 			LibBase->Alloc = 1;
