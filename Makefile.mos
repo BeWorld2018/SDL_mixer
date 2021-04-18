@@ -1,15 +1,65 @@
 # Makefile to build the SDL2_mixer library
 # 
-CDEFS   = -D__MORPHOS_SHAREDLIBS  -DHAVE_SNPRINTF -DHAVE_UNISTD_H -DHAVE_SETBUF -DHAVE_FORK  \
-	    -DMUSIC_WAV -DMUSIC_OGG -DUSE_VORBISLIB -DMUSIC_MID_TIMIDITY -DMUSIC_MOD_MIKMOD  -DMUSIC_FLAC -DMUSIC_MP3_MPG123
 
-CC      = ppc-morphos-gcc-10 -noixemul 
-LIBS_EXT = -L/usr/local/lib -lflac -lmikmod -lmpg123 -lm -lc
+HAVEMPG123 		= 1
+HAVEMAD			= 0
+HAVEMIKMOD		= 1
+HAVEXMP			= 1
+HAVEOPUS		= 1
+HAVETIMIDITY	= 0
+HAVEFLUIDSYNTH 	= 1
+HAVEFLAC		= 1
+HAVEVORBISLIB	= 0
 
-INCLUDE = -I/usr/local/include/SDL2 -I. -I/usr/local/include -IMorphOS/sdk -I./include -I./src/ -I./src/codecs
+CC  = ppc-morphos-gcc-10 -noixemul 
+AR	= ppc-morphos-ar
+
+CDEFS   = -DHAVE_SNPRINTF -DHAVE_UNISTD_H -DHAVE_SETBUF -DHAVE_FORK
+CDEFS  += -DMUSIC_WAV -DMUSIC_OGG -DOGG_USE_TREMOR
+
+LIBS_EXT = -L/usr/local/lib -lvorbisidec
+
+ifeq ($(HAVEVORBISLIB),1)
+LIBS_EXT 	+= 
+CDEFS		+= -D__MORPHOS_SHAREDLIBS -DUSE_VORBISLIB 
+endif
+ifeq ($(HAVEMPG123),1)
+LIBS_EXT 	+= -lmpg123_shared 
+CDEFS		+= -DMUSIC_MP3_MPG123
+endif
+ifeq ($(HAVEMAD),1)
+LIBS_EXT 	+= -lmad
+CDEFS		+= -DMUSIC_MP3_MAD
+endif
+ifeq ($(HAVEMIKMOD),1)
+LIBS_EXT 	+= -lmikmod 
+CDEFS		+= -DMUSIC_MOD_MIKMOD
+endif
+ifeq ($(HAVEXMP),1)
+LIBS_EXT 	+= -lxmp
+CDEFS		+= -DMUSIC_MOD_XMP
+endif
+ifeq ($(HAVEOPUS),1)
+LIBS_EXT 	+= -lopusfile -lopus -logg
+CDEFS		+= -DMUSIC_OPUS
+endif
+ifeq ($(HAVETIMIDITY),1)
+CDEFS		+= -DMUSIC_MID_TIMIDITY 
+endif
+ifeq ($(HAVEFLUIDSYNTH),1)
+LIBS_EXT 	+= -lfluidsynth 
+CDEFS		+= -DMUSIC_MID_FLUIDSYNTH
+endif
+ifeq ($(HAVEFLAC),1)
+LIBS_EXT 	+= -lflac 
+CDEFS		+= -DMUSIC_FLAC
+endif
+
+LIBS_EXT +=  -logg -lm 
+
+INCLUDE = -I/usr/local/include/SDL2 -I. -I/usr/local/include -I/usr/local/include/opus -IMorphOS/sdk -I./include -I./src/ -I./src/codecs
 CFLAGS  =  -mresident32 -O2 -mcpu=750 -mtune=7450 -Wno-pointer-sign -fno-strict-aliasing -Wall -ffast-math $(INCLUDE)  $(CDEFS)
 
-AR	= ppc-morphos-ar
 
 AMIGADATE = $(shell date +"%-d.%-m.%Y")
 

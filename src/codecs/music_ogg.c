@@ -34,12 +34,20 @@
 #elif defined(OGG_USE_TREMOR)
 #include <tremor/ivorbisfile.h>
 #else
-#if defined(__MORPHOS__) && defined(USE_VORBISLIB)
-#include <proto/exec.h>
-#include <libraries/vorbisfile.h>
-extern struct Library *VorbisFileBase;
+#if defined(__MORPHOS__) 
+
+#if defined(USE_VORBISLIB)
+	#include <proto/exec.h>
+	#include <libraries/vorbisfile.h>
+	extern struct Library *VorbisFileBase;
 #else
-#include <vorbis/vorbisfile.h>
+	#if defined(OGG_USE_TREMOR)
+		#include <tremor/ivorbisfile.h>
+	#else
+		#include <vorbis/vorbisfile.h>
+	#endif
+#endif
+
 #endif
 #endif
 

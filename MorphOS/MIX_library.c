@@ -19,7 +19,7 @@ STATIC CONST TEXT libname[] = "sdl2_mixer.library";
 struct ExecBase   *SysBase  = NULL;
 struct DosLibrary *DOSBase  = NULL;
 struct Library    *SDL2Base = NULL;
-struct Library    *VorbisFileBase = NULL;
+//struct Library    *VorbisFileBase = NULL;
 struct Library    *SDL2MixerBase = NULL;
 
 /**********************************************************************
@@ -158,11 +158,11 @@ static BPTR DeleteLib(struct SDL2MixerLibrary *LibBase, struct ExecBase *SysBase
 static void UserLibClose(struct SDL2MixerLibrary *LibBase, struct ExecBase *SysBase)
 {
 	//CloseLibrary(SDL2Base);
-	if (VorbisFileBase)
-    	CloseLibrary(VorbisFileBase);
+	//if (VorbisFileBase)
+    //	CloseLibrary(VorbisFileBase);
 
 	//SDL2Base = NULL;
-	VorbisFileBase = NULL;
+	//VorbisFileBase = NULL;
 
 }
 
@@ -254,19 +254,20 @@ struct Library *LIB_Open(void)
 
 	ObtainSemaphore(&LibBase->Semaphore);
 
-	if (LibBase->Alloc == 0)
+/*	if (LibBase->Alloc == 0)
 	{
 		if (/*((SDL2Base = OpenLibrary("sdl2.library",  53)) != NULL)
 			&&*/ ((VorbisFileBase = OpenLibrary("vorbisfile.library",  2)) != NULL))
 		{
+*/
 			LibBase->Alloc = 1;
-		}
+/*		}
 		else
 		{
 			goto error;
 		}
 	}
-
+*/
 	if ((newbase = AllocVecTaskPooled(MyBaseSize + LibBase->DataSize + 15)) != NULL)
 	{
 		CopyMem((APTR)((ULONG)LibBase - (ULONG)LibBase->Library.lib_NegSize), newbase, MyBaseSize);
@@ -334,9 +335,9 @@ error:
 
 #include "MIX_stubs.h"
 
-extern void LIB_InitTGL();
-extern void LIB_SetExitPointer();
-extern void LIB_SDL_VSetError();
+//extern void LIB_InitTGL();
+//extern void LIB_SetExitPointer();
+//extern void LIB_SDL_VSetError();
 
 static const APTR FuncTable[] =
 {
