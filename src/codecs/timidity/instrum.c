@@ -389,9 +389,9 @@ static void load_instrument(MidiSong *song, const char *name,
       else
 	/* convert to machine byte order */
 	{
-#ifdef __MORPHOS__
-	  SDL_CopyAndSwap16(sp->data, sp->data, sp->data_length /2);
-#else
+//#ifdef __MORPHOS__
+//	  SDL_CopyAndSwap16(sp->data, sp->data, sp->data_length /2);
+//#else
 	  Sint32 k=sp->data_length/2;
 	  Sint16 *tmp16=(Sint16 *)sp->data,s;
 	  while (k--)
@@ -399,7 +399,7 @@ static void load_instrument(MidiSong *song, const char *name,
 	      s=SDL_SwapLE16(*tmp16);
 	      *tmp16++=s;
 	    }
-#endif
+//#endif
 	}
 #endif
 
