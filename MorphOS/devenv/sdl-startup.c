@@ -14,7 +14,7 @@
 
 #include "../MIX_version.h"
 
-extern void __SDL2_OpenLibError(ULONG version, const char *name);
+extern void __SDL2_OpenLibError(ULONG version, const char *name, ULONG revision);
 
 #if defined(__NO_SDL_CONSTRUCTORS)
 extern struct Library *SDL2MixerBase;
@@ -32,7 +32,7 @@ static CONSTRUCTOR_P(init_SDL2MixerBase, 100)
 
 	if (base == NULL)
 	{
-		__SDL2_OpenLibError(VERSION, libname);
+		__SDL2_OpenLibError(VERSION, libname, REVISION);
 	}
 
 	return (base == NULL);

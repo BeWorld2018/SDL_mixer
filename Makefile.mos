@@ -11,7 +11,7 @@ HAVEFLUIDSYNTH 	= 0
 HAVEFLAC		= 1
 HAVEVORBISLIB	= 0
 
-CC  = ppc-morphos-gcc-10 -noixemul 
+CC  = ppc-morphos-gcc-9 -noixemul 
 AR	= ppc-morphos-ar
 
 CDEFS   = -DHAVE_SNPRINTF -DHAVE_UNISTD_H -DHAVE_SETBUF -DHAVE_FORK
