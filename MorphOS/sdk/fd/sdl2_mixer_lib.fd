@@ -93,4 +93,5 @@ Mix_GetMusicLoopLengthTime(music)(sysv,r12base)
 Mix_SetTimidityCfg(path)(sysv,r12base)
 Mix_GetTimidityCfg()(sysv,r12base)
 Mix_ModMusicJumpToOrder(order)(sysv,r12base)
+Mix_MasterVolume(volume)(sysv,r12base)
 ##end

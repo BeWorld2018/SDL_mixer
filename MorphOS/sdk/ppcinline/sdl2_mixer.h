@@ -756,4 +756,12 @@
 		(((int (*)(int ))*(void**)(__base - 556))(__t__p0));\
 	})
 
+#define Mix_MasterVolume(__p0) \
+	({ \
+		int  __t__p0 = __p0;\
+		long __base = (long)(SDL2_MIXER_BASE_NAME);\
+		__asm volatile("mr 12,%0": :"r"(__base):"r12");\
+		(((int (*)(int ))*(void**)(__base - 562))(__t__p0));\
+	})
+
 #endif /* !_PPCINLINE_SDL2_MIXER_H */

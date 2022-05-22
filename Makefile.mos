@@ -1,14 +1,27 @@
 # Makefile to build the SDL2_mixer library
 # 
 
+# mp3 music support (using mpg123)
 HAVEMPG123 		= 1
+# mp3 music support (using dr_mp3)
+HAVEDRMP3		= 0
+# mp3 music support (using libmad - Note: GPL license!)
 HAVEMAD			= 0
+# tracker music support (using libmikmod)
 HAVEMIKMOD		= 1
+# tracker music support (using libxmp)
 HAVEXMP			= 1
+# opus music support
 HAVEOPUS		= 1
+# midi music support (using timidity)
 HAVETIMIDITY	= 1
+# midi music support (using fluidsynth)
 HAVEFLUIDSYNTH 	= 0
-HAVEFLAC		= 1
+# flac music support (using libflac)
+HAVELIBFLAC		= 1
+# flac music support (using dr_flac)
+HAVEDRFLAC		= 0
+# libvorbis
 HAVEVORBISLIB	= 0
 
 CC  = ppc-morphos-gcc-9 -noixemul 
@@ -31,6 +44,10 @@ ifeq ($(HAVEMAD),1)
 LIBS_EXT 	+= -lmad
 CDEFS		+= -DMUSIC_MP3_MAD
 endif
+ifeq ($(HAVEDRMP3),1)
+LIBS_EXT 	+= 
+CFLAGS		+= -DMUSIC_MP3_DRMP3
+endif
 ifeq ($(HAVEMIKMOD),1)
 LIBS_EXT 	+= -lmikmod 
 CDEFS		+= -DMUSIC_MOD_MIKMOD
@@ -50,16 +67,19 @@ ifeq ($(HAVEFLUIDSYNTH),1)
 LIBS_EXT 	+= -lfluidsynth 
 CDEFS		+= -DMUSIC_MID_FLUIDSYNTH
 endif
-ifeq ($(HAVEFLAC),1)
+ifeq ($(HAVELIBFLAC),1)
 LIBS_EXT 	+= -lflac 
-CDEFS		+= -DMUSIC_FLAC
+CDEFS		+= -DMUSIC_FLAC_LIBFLAC
+endif
+ifeq ($(HAVEDRFLAC),1)
+LIBS_EXT 	+= 
+CDEFS		+= -DMUSIC_FLAC_DRFLAC
 endif
 
 LIBS_EXT +=  -logg -lm 
 
 INCLUDE = -I/usr/local/include/SDL2 -I. -I/usr/local/include -I/usr/local/include/opus -IMorphOS/sdk -I./include -I./src/ -I./src/codecs
 CFLAGS  =  -mresident32 -O2 -mcpu=750 -mtune=7450 -Wno-pointer-sign -fno-strict-aliasing -Wall -ffast-math $(INCLUDE)  $(CDEFS)
-
 
 AMIGADATE = $(shell date +"%-d.%-m.%Y")
 
@@ -88,11 +108,13 @@ SOURCES = \
 	src/codecs/mp3utils.c \
 	src/codecs/music_cmd.c \
 	src/codecs/music_flac.c \
+	src/codecs/music_drflac.c \
 	src/codecs/music_fluidsynth.c \
 	src/codecs/music_mad.c \
 	src/codecs/music_mikmod.c \
 	src/codecs/music_modplug.c \
 	src/codecs/music_mpg123.c \
+	src/codecs/music_drmp3.c \
 	src/codecs/music_nativemidi.c \
 	src/codecs/music_opus.c \
 	src/codecs/music_ogg.c \

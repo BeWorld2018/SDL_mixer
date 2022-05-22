@@ -104,6 +104,7 @@ double Mix_GetMusicLoopLengthTime(Mix_Music *music);
 int Mix_SetTimidityCfg(const char *path);
 const char* Mix_GetTimidityCfg(void);
 int Mix_ModMusicJumpToOrder(int order);
+int Mix_MasterVolume(int volume);
 
 #ifdef __cplusplus
 }
