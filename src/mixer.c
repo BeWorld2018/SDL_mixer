@@ -36,6 +36,29 @@
 #define FORM        0x4d524f46      /* "FORM" */
 #define CREA        0x61657243      /* "Crea" */
 
+#if defined(SDL_BUILD_MAJOR_VERSION) && defined(SDL_COMPILE_TIME_ASSERT)
+SDL_COMPILE_TIME_ASSERT(SDL_BUILD_MAJOR_VERSION,
+                        SDL_MIXER_MAJOR_VERSION == SDL_BUILD_MAJOR_VERSION);
+SDL_COMPILE_TIME_ASSERT(SDL_BUILD_MINOR_VERSION,
+                        SDL_MIXER_MINOR_VERSION == SDL_BUILD_MINOR_VERSION);
+SDL_COMPILE_TIME_ASSERT(SDL_BUILD_MICRO_VERSION,
+                        SDL_MIXER_PATCHLEVEL == SDL_BUILD_MICRO_VERSION);
+#endif
+
+#if defined(SDL_COMPILE_TIME_ASSERT)
+SDL_COMPILE_TIME_ASSERT(SDL_MIXER_MAJOR_VERSION_min, SDL_MIXER_MAJOR_VERSION >= 0);
+/* Limited only by the need to fit in SDL_version */
+SDL_COMPILE_TIME_ASSERT(SDL_MIXER_MAJOR_VERSION_max, SDL_MIXER_MAJOR_VERSION <= 255);
+
+SDL_COMPILE_TIME_ASSERT(SDL_MIXER_MINOR_VERSION_min, SDL_MIXER_MINOR_VERSION >= 0);
+/* Limited only by the need to fit in SDL_version */
+SDL_COMPILE_TIME_ASSERT(SDL_MIXER_MINOR_VERSION_max, SDL_MIXER_MINOR_VERSION <= 255);
+
+SDL_COMPILE_TIME_ASSERT(SDL_MIXER_PATCHLEVEL_min, SDL_MIXER_PATCHLEVEL >= 0);
+/* Limited by its encoding in SDL_VERSIONNUM and in the ABI versions */
+SDL_COMPILE_TIME_ASSERT(SDL_MIXER_PATCHLEVEL_max, SDL_MIXER_PATCHLEVEL <= 99);
+#endif
+
 static int audio_opened = 0;
 static SDL_AudioSpec mixer;
 static SDL_AudioDeviceID audio_device;
@@ -87,6 +110,7 @@ static void *music_data = NULL;
 static const char **chunk_decoders = NULL;
 static int num_decoders = 0;
 
+static SDL_atomic_t master_volume = { MIX_MAX_VOLUME };
 
 int Mix_GetNumChunkDecoders(void)
 {
@@ -140,9 +164,55 @@ const SDL_version *Mix_Linked_Version(void)
     return(&linked_version);
 }
 
+/*
+ * Returns a bitmap of already loaded modules (MIX_INIT_* flags).
+ *
+ * Note that functions other than Mix_Init() may cause a module to get loaded
+ * (hence the looping over the interfaces instead of maintaining a set of flags
+ * just in Mix_Init() and Mix_Quit()).
+ */
+static int get_loaded_mix_init_flags(void)
+{
+    int i;
+    int loaded_init_flags = 0;
+
+    for (i = 0; i < get_num_music_interfaces(); ++i) {
+        Mix_MusicInterface *interface;
+
+        interface = get_music_interface(i);
+        if (interface->loaded) {
+            switch (interface->type) {
+            case MUS_FLAC:
+                loaded_init_flags |= MIX_INIT_FLAC;
+                break;
+            case MUS_MOD:
+                loaded_init_flags |= MIX_INIT_MOD;
+                break;
+            case MUS_MP3:
+                loaded_init_flags |= MIX_INIT_MP3;
+                break;
+            case MUS_OGG:
+                loaded_init_flags |= MIX_INIT_OGG;
+                break;
+            case MUS_MID:
+                loaded_init_flags |= MIX_INIT_MID;
+                break;
+            case MUS_OPUS:
+                loaded_init_flags |= MIX_INIT_OPUS;
+                break;
+            default:
+                break;
+            }
+        }
+    }
+
+    return loaded_init_flags;
+}
+
 int Mix_Init(int flags)
 {
     int result = 0;
+    int already_loaded = get_loaded_mix_init_flags();
 
     if (flags & MIX_INIT_FLAC) {
         if (load_music_type(MUS_FLAC)) {
@@ -192,6 +262,8 @@ int Mix_Init(int flags)
             Mix_SetError("MIDI support not available");
         }
     }
+    result |= already_loaded;
+
     return result;
 }
 
@@ -274,18 +346,19 @@ static void SAVEDS SDLCALL
 mix_channels(void *udata, Uint8 *stream, int len)
 {
     Uint8 *mix_input;
-    int i, mixable, volume = MIX_MAX_VOLUME;
+    int i, mixable, volume, master_vol;
     Uint32 sdl_ticks;
 
     (void)udata;
 
-#if SDL_VERSION_ATLEAST(1, 3, 0)
     /* Need to initialize the stream in SDL 1.3+ */
     SDL_memset(stream, mixer.silence, (size_t)len);
-#endif
 
     /* Mix the music (must be done before the channels are added) */
     mix_music(music_data, stream, len);
+
+    volume = Mix_MasterVolume(-1);
+    master_vol = volume;
 
     /* Mix any playing channels... */
     sdl_ticks = SDL_GetTicks();
@@ -323,7 +396,7 @@ mix_channels(void *udata, Uint8 *stream, int len)
                 int remaining = len;
                 while (mix_channel[i].playing > 0 && index < len) {
                     remaining = len - index;
-                    volume = (mix_channel[i].volume*mix_channel[i].chunk->volume) / MIX_MAX_VOLUME;
+                    volume = (master_vol * (mix_channel[i].volume * mix_channel[i].chunk->volume)) / (MIX_MAX_VOLUME * MIX_MAX_VOLUME);
                     mixable = mix_channel[i].playing;
                     if (mixable > remaining) {
                         mixable = remaining;
@@ -1004,7 +1077,7 @@ int Mix_PlayChannelTimed(int which, Mix_Chunk *chunk, int loops, int ticks)
 
         /* Queue up the audio data for this channel */
         if (which >= 0 && which < num_channels) {
-            Uint32 sdl_ticks = SDL_GetTicks();            
+            Uint32 sdl_ticks = SDL_GetTicks();
             mix_channel[which].samples = chunk->abuf;
             mix_channel[which].playing = (int)chunk->alen;
             mix_channel[which].looping = loops;
@@ -1075,7 +1148,7 @@ int Mix_FadeInChannelTimed(int which, Mix_Chunk *chunk, int loops, int ms, int t
 
         /* Queue up the audio data for this channel */
         if (which >= 0 && which < num_channels) {
-            Uint32 sdl_ticks = SDL_GetTicks();            
+            Uint32 sdl_ticks = SDL_GetTicks();
             mix_channel[which].samples = chunk->abuf;
             mix_channel[which].playing = (int)chunk->alen;
             mix_channel[which].looping = loops;
@@ -1639,6 +1712,19 @@ void Mix_LockAudio(void)
 void Mix_UnlockAudio(void)
 {
     SDL_UnlockAudioDevice(audio_device);
+}
+
+int Mix_MasterVolume(int volume)
+{
+    int prev_volume = SDL_AtomicGet(&master_volume);
+    if (volume < 0) {
+        return prev_volume;
+    }
+    if (volume > SDL_MIX_MAXVOLUME) {
+        volume = SDL_MIX_MAXVOLUME;
+    }
+    SDL_AtomicSet(&master_volume, volume);
+    return(prev_volume);
 }
 
 /* end of mixer.c ... */

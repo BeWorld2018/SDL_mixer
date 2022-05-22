@@ -19,7 +19,7 @@
   3. This notice may not be removed or altered from any source distribution.
 */
 
-#ifdef MUSIC_OGG
+#if defined(MUSIC_OGG) && !defined(OGG_USE_STB)
 
 /* This file supports Ogg Vorbis music streams */
 
@@ -87,7 +87,8 @@ static vorbis_loader vorbis;
     if (vorbis.FUNC == NULL) { SDL_UnloadObject(vorbis.handle); return -1; }
 #else
 #define FUNCTION_LOADER(FUNC, SIG) \
-    vorbis.FUNC = FUNC;
+    vorbis.FUNC = FUNC; \
+    if (vorbis.FUNC == NULL) { Mix_SetError("Missing vorbis.framework or tremor.framework"); return -1; }
 #endif
 
 static int OGG_Load(void)
@@ -96,14 +97,6 @@ static int OGG_Load(void)
 #ifdef OGG_DYNAMIC
         vorbis.handle = SDL_LoadObject(OGG_DYNAMIC);
         if (vorbis.handle == NULL) {
-            return -1;
-        }
-#elif defined(__MACOSX__)
-        extern int ov_open_callbacks(void*, OggVorbis_File*, const char*, long, ov_callbacks) __attribute__((weak_import));
-        if (ov_open_callbacks == NULL)
-        {
-            /* Missing weakly linked framework */
-            Mix_SetError("Missing Vorbis.framework");
             return -1;
         }
 #endif
@@ -214,7 +207,7 @@ static size_t sdl_read_func(void *ptr, size_t size, size_t nmemb, void *datasour
 
 static int sdl_seek_func(void *datasource, ogg_int64_t offset, int whence)
 {
-    return (int)SDL_RWseek((SDL_RWops*)datasource, offset, whence);
+    return (SDL_RWseek((SDL_RWops*)datasource, offset, whence) < 0)? -1 : 0;
 }
 
 static long sdl_tell_func(void *datasource)
@@ -393,6 +386,12 @@ static int OGG_Play(void *context, int play_count)
     OGG_music *music = (OGG_music *)context;
     music->play_count = play_count;
     return OGG_Seek(music, 0.0);
+}
+
+static void OGG_Stop(void *context)
+{
+    OGG_music *music = (OGG_music *)context;
+    SDL_AudioStreamClear(music->stream);
 }
 
 /* Play some of a stream previously started with OGG_play() */
@@ -586,7 +585,7 @@ Mix_MusicInterface Mix_MusicInterface_OGG =
     OGG_GetMetaTag,   /* GetMetaTag */
     NULL,   /* Pause */
     NULL,   /* Resume */
-    NULL,   /* Stop */
+    OGG_Stop,
     OGG_Delete,
     NULL,   /* Close */
     OGG_Unload

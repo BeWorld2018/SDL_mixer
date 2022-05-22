@@ -22,7 +22,7 @@
     ~ Austen Dicken (admin@cvpcs.org)
 */
 
-#ifdef MUSIC_FLAC
+#ifdef MUSIC_FLAC_LIBFLAC
 
 #include "SDL_loadso.h"
 #include "SDL_assert.h"
@@ -77,7 +77,8 @@ static flac_loader flac;
     if (flac.FUNC == NULL) { SDL_UnloadObject(flac.handle); return -1; }
 #else
 #define FUNCTION_LOADER(FUNC, SIG) \
-    flac.FUNC = FUNC;
+    flac.FUNC = FUNC; \
+    if (flac.FUNC == NULL) { Mix_SetError("Missing FLAC.framework"); return -1; }
 #endif
 
 static int FLAC_Load(void)
@@ -86,14 +87,6 @@ static int FLAC_Load(void)
 #ifdef FLAC_DYNAMIC
         flac.handle = SDL_LoadObject(FLAC_DYNAMIC);
         if (flac.handle == NULL) {
-            return -1;
-        }
-#elif defined(__MACOSX__)
-        extern FLAC__StreamDecoder *FLAC__stream_decoder_new(void) __attribute__((weak_import));
-        if (FLAC__stream_decoder_new == NULL)
-        {
-            /* Missing weakly linked framework */
-            Mix_SetError("Missing FLAC.framework");
             return -1;
         }
 #endif
@@ -582,6 +575,12 @@ static int FLAC_Play(void *context, int play_count)
     return FLAC_Seek(music, 0.0);
 }
 
+static void FLAC_Stop(void *context)
+{
+    FLAC_Music *music = (FLAC_Music *)context;
+    SDL_AudioStreamClear(music->stream);
+}
+
 /* Read some FLAC stream data and convert it for output */
 static int FLAC_GetSome(void *context, void *data, int bytes, SDL_bool *done)
 {
@@ -652,6 +651,7 @@ static int FLAC_Seek(void *context, double position)
     FLAC__uint64 seek_sample = (FLAC__uint64) (music->sample_rate * position);
 
     SDL_AudioStreamClear(music->stream);
+
     music->pcm_pos = (FLAC__int64) seek_sample;
     if (!flac.FLAC__stream_decoder_seek_absolute(music->flac_decoder, seek_sample)) {
         if (flac.FLAC__stream_decoder_get_state(music->flac_decoder) == FLAC__STREAM_DECODER_SEEK_ERROR) {
@@ -751,12 +751,12 @@ Mix_MusicInterface Mix_MusicInterface_FLAC =
     FLAC_GetMetaTag,/* GetMetaTag */
     NULL,   /* Pause */
     NULL,   /* Resume */
-    NULL,   /* Stop */
+    FLAC_Stop,   /* Stop */
     FLAC_Delete,
     NULL,   /* Close */
     FLAC_Unload
 };
 
-#endif /* MUSIC_FLAC */
+#endif /* MUSIC_FLAC_LIBFLAC */
 
 /* vi: set ts=4 sw=4 expandtab: */
