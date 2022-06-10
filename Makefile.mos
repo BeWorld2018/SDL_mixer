@@ -1,85 +1,106 @@
 # Makefile to build the SDL2_mixer library
 # 
 
-# mp3 music support (using mpg123)
-HAVEMPG123 		= 1
-# mp3 music support (using dr_mp3)
-HAVEDRMP3		= 0
-# mp3 music support (using libmad - Note: GPL license!)
-HAVEMAD			= 0
-# tracker music support (using libmikmod)
-HAVEMIKMOD		= 1
-# tracker music support (using libxmp)
-HAVEXMP			= 1
-# opus music support
-HAVEOPUS		= 1
-# midi music support (using timidity)
-HAVETIMIDITY	= 1
-# midi music support (using fluidsynth)
-HAVEFLUIDSYNTH 	= 0
-# flac music support (using libflac)
-HAVELIBFLAC		= 1
-# flac music support (using dr_flac)
-HAVEDRFLAC		= 0
-# libvorbis
-HAVEVORBISLIB	= 0
 
-CC  = ppc-morphos-gcc-9 -noixemul 
+# wav music support
+USE_WAV=1
+# ogg/vorbis music support
+USE_OGG=1
+# use integer-only Tremor (libvorbisidec) instead of libvorbis?
+USE_TREMOR=1
+# use stb_vorbis instead of libvorbis?
+USE_STBVORBIS=0
+# flac music support (using libflac)
+USE_FLAC=1
+# flac music support (using dr_flac)
+USE_DRFLAC=0
+# opus music support
+USE_OPUS=1
+# mp3 music support (using mpg123)
+USE_MPG123=1
+# mp3 music support (using dr_mp3)
+USE_DRMP3=0
+# midi music support (using timidity)
+USE_TIMIDITY=1
+# midi music support (using fluidsynth)
+USE_FLUIDSYNTH=0
+# tracker music support (using libxmp)
+USE_XMP=1
+# tracker music support (using libmodplug)
+USE_MODPLUG=0
+
+CC  = ppc-morphos-gcc-11 -noixemul 
 AR	= ppc-morphos-ar
 
-CDEFS   = -DHAVE_SNPRINTF -DHAVE_UNISTD_H -DHAVE_SETBUF -DHAVE_FORK
-CDEFS  += -DMUSIC_WAV -DMUSIC_OGG -DOGG_USE_TREMOR
-
-LIBS_EXT = -L/usr/local/lib -lvorbisidec
-
-ifeq ($(HAVEVORBISLIB),1)
-LIBS_EXT 	+= 
-CDEFS		+= -D__MORPHOS_SHAREDLIBS -DUSE_VORBISLIB 
-endif
-ifeq ($(HAVEMPG123),1)
-LIBS_EXT 	+= -lmpg123_shared 
-CDEFS		+= -DMUSIC_MP3_MPG123
-endif
-ifeq ($(HAVEMAD),1)
-LIBS_EXT 	+= -lmad
-CDEFS		+= -DMUSIC_MP3_MAD
-endif
-ifeq ($(HAVEDRMP3),1)
-LIBS_EXT 	+= 
-CFLAGS		+= -DMUSIC_MP3_DRMP3
-endif
-ifeq ($(HAVEMIKMOD),1)
-LIBS_EXT 	+= -lmikmod 
-CDEFS		+= -DMUSIC_MOD_MIKMOD
-endif
-ifeq ($(HAVEXMP),1)
-LIBS_EXT 	+= -lxmp
-CDEFS		+= -DMUSIC_MOD_XMP
-endif
-ifeq ($(HAVEOPUS),1)
-LIBS_EXT 	+= -lopusfile -lopus -logg
-CDEFS		+= -DMUSIC_OPUS
-endif
-ifeq ($(HAVETIMIDITY),1)
-CDEFS		+= -DMUSIC_MID_TIMIDITY 
-endif
-ifeq ($(HAVEFLUIDSYNTH),1)
-LIBS_EXT 	+= -lfluidsynth 
-CDEFS		+= -DMUSIC_MID_FLUIDSYNTH
-endif
-ifeq ($(HAVELIBFLAC),1)
-LIBS_EXT 	+= -lflac 
-CDEFS		+= -DMUSIC_FLAC_LIBFLAC
-endif
-ifeq ($(HAVEDRFLAC),1)
-LIBS_EXT 	+= 
-CDEFS		+= -DMUSIC_FLAC_DRFLAC
-endif
-
-LIBS_EXT +=  -logg -lm 
-
 INCLUDE = -I/usr/local/include/SDL2 -I. -I/usr/local/include -I/usr/local/include/opus -IMorphOS/sdk -I./include -I./src/ -I./src/codecs
-CFLAGS  =  -mresident32 -O2 -mcpu=750 -mtune=7450 -Wno-pointer-sign -fno-strict-aliasing -Wall -ffast-math $(INCLUDE)  $(CDEFS)
+CFLAGS  =  -mresident32 -O2 -mcpu=750 -mtune=7450 -Wno-pointer-sign -fno-strict-aliasing -Wall -ffast-math -DHAVE_SNPRINTF -DHAVE_UNISTD_H -DHAVE_SETBUF -DHAVE_FORK $(INCLUDE)
+LIBS += -L/usr/local/lib
+
+ifeq ($(USE_WAV),1)
+CFLAGS+= -DMUSIC_WAV
+endif
+
+ifeq ($(USE_OGG),1)
+CFLAGS+= -DMUSIC_OGG
+ifeq ($(USE_STBVORBIS),1)
+CFLAGS+= -DOGG_USE_STB
+else
+ifeq ($(USE_TREMOR),1)
+CFLAGS+= -DOGG_USE_TREMOR
+LIBS += -lvorbisidec
+else
+CFLAGS+= -D__MORPHOS_SHAREDLIBS -DUSE_VORBISLIB 
+endif
+NEED_LIBOGG=1
+endif
+endif
+
+ifeq ($(USE_FLAC),1)
+CFLAGS+= -DMUSIC_FLAC_LIBFLAC
+LIBS+= -lflac 
+endif
+
+ifeq ($(USE_DRFLAC),1)
+CFLAGS+= -DMUSIC_FLAC_DRFLAC
+endif
+
+ifeq ($(USE_OPUS),1)
+CFLAGS+= -DMUSIC_OPUS
+LIBS+= -lopusfile -lopus
+NEED_LIBOGG=1
+endif
+
+ifeq ($(USE_MPG123),1)
+CFLAGS+= -DMUSIC_MP3_MPG123
+LIBS+= -lmpg123_shared 
+endif
+
+ifeq ($(USE_DRMP3),1)
+CFLAGS+= -DMUSIC_MP3_DRMP3
+endif
+
+ifeq ($(USE_XMP),1)
+CFLAGS+= -DMUSIC_MOD_XMP
+LIBS+= -lxmp
+endif
+
+ifeq ($(USE_MODPLUG),1)
+CFLAGS+= -DMUSIC_MOD_MODPLUG
+LIBS+= -lmodplug
+endif
+
+ifeq ($(USE_TIMIDITY),1)
+CFLAGS+= -DMUSIC_MID_TIMIDITY 
+endif
+
+ifeq ($(USE_FLUIDSYNTH),1)
+CFLAGS+= -DMUSIC_MID_FLUIDSYNTH
+LIBS+= -lfluidsynth 
+endif
+
+ifeq ($(NEED_LIBOGG),1)
+LIBS+= -logg -lm 
+endif
 
 AMIGADATE = $(shell date +"%-d.%-m.%Y")
 
@@ -110,8 +131,6 @@ SOURCES = \
 	src/codecs/music_flac.c \
 	src/codecs/music_drflac.c \
 	src/codecs/music_fluidsynth.c \
-	src/codecs/music_mad.c \
-	src/codecs/music_mikmod.c \
 	src/codecs/music_modplug.c \
 	src/codecs/music_mpg123.c \
 	src/codecs/music_drmp3.c \
@@ -163,7 +182,7 @@ $(TARGET): $(OBJECTS)
 
 $(LIBRARY): $(TARGET) $(COREOBJECTS)
 	$(LINKING)
-	$(CC) -nostartfiles -mresident32 -Wl,-Map=sdl2_mixer.map $(COREOBJECTS) -o $@.db -L. -lSDL2_mixer -L/usr/local/lib -lSDL2 -lm $(LIBS_EXT)
+	$(CC) -nostartfiles -mresident32 -Wl,-Map=sdl2_mixer.map $(COREOBJECTS) -o $@.db -L. -lSDL2_mixer -L/usr/local/lib -lSDL2 -lm $(LIBS)
 	$(STRIPPING)
 	@ppc-morphos-strip -o $@ --remove-section=.comment $@.db
 
