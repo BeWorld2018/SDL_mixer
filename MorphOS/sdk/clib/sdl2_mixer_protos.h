@@ -105,6 +105,7 @@ int Mix_SetTimidityCfg(const char *path);
 const char* Mix_GetTimidityCfg(void);
 int Mix_ModMusicJumpToOrder(int order);
 int Mix_MasterVolume(int volume);
+Mix_Chunk * Mix_LoadWAV(const char *file);
 
 #ifdef __cplusplus
 }

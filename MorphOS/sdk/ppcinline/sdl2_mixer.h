@@ -764,4 +764,12 @@
 		(((int (*)(int ))*(void**)(__base - 562))(__t__p0));\
 	})
 
+#define Mix_LoadWAV(__p0) \
+	({ \
+		const char * __t__p0 = __p0;\
+		long __base = (long)(SDL2_MIXER_BASE_NAME);\
+		__asm volatile("mr 12,%0": :"r"(__base):"r12");\
+		(((Mix_Chunk *(*)(const char *))*(void**)(__base - 568))(__t__p0));\
+	})
+
 #endif /* !_PPCINLINE_SDL2_MIXER_H */

@@ -119,4 +119,5 @@
 	STUB(Mix_GetTimidityCfg)
 	STUB(Mix_ModMusicJumpToOrder)
 	STUB(Mix_MasterVolume)
+	STUB(Mix_LoadWAV)
 	

@@ -32,7 +32,7 @@ USE_MODPLUG=0
 CC  = ppc-morphos-gcc-11 -noixemul 
 AR	= ppc-morphos-ar
 
-INCLUDE = -I/usr/local/include/SDL2 -I. -I/usr/local/include -I/usr/local/include/opus -IMorphOS/sdk -I./include -I./src/ -I./src/codecs
+INCLUDE =  -IMorphOS/sdk -I./include -I./src/ -I./src/codecs -I/usr/local/include/SDL2 -I. -I/usr/local/include -I/usr/local/include/opus
 CFLAGS  =  -mresident32 -O2 -mcpu=750 -mtune=7450 -Wno-pointer-sign -fno-strict-aliasing -Wall -ffast-math -DHAVE_SNPRINTF -DHAVE_UNISTD_H -DHAVE_SETBUF -DHAVE_FORK $(INCLUDE)
 LIBS += -L/usr/local/lib
 
