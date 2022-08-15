@@ -31,7 +31,10 @@ AC_SUBST(MINOR_VERSION)
 AC_SUBST(MICRO_VERSION)
 AC_SUBST(INTERFACE_AGE)
 AC_SUBST(BINARY_AGE)
-AC_SUBST(VERSION)
+# Automake defines VERSION to be the same as PACKAGE_VERSION, but we're
+# not using Automake in SDL_mixer, so we need to set up the @VERSION@
+# substitution for SDL2_mixer.pc ourselves
+AC_SUBST([VERSION], [$PACKAGE_VERSION])
 
 dnl libtool versioning
 LT_INIT([win32-dll])
@@ -63,12 +66,17 @@ dnl Detect the canonical build and host environments
 dnl AC_CANONICAL_HOST
 
 dnl Check for tools
+AC_PROG_AWK
 AC_PROG_CC
 AC_PROG_CXX
 AC_PROG_INSTALL
 AC_PROG_MAKE_SET
 LT_PROG_RC
 PKG_PROG_PKG_CONFIG
+
+if [ test -z "$AWK" ]; then
+    AC_MSG_ERROR([*** awk not found, aborting])
+fi
 
 dnl Set up the compiler and linker flags
 case "$host" in
@@ -260,7 +268,7 @@ find_lib()
         host_lib_path="$ac_default_prefix/$base_libdir $ac_default_prefix/$base_bindir /usr/$base_libdir /usr/local/$base_libdir"
     fi
     for path in $env_lib_path $gcc_bin_path $gcc_lib_path $host_lib_path; do
-        lib=[`ls -- $path/$1 2>/dev/null | sed -e '/\.so\..*\./d' -e 's,.*/,,' | sort | tail -1`]
+        lib=[`ls -- $path/$1 2>/dev/null | sed 's,.*/,,' | sort -V -r | $AWK 'BEGIN{FS="."}{ print NF, $0 }' | sort -n -s | sed 's,[0-9]* ,,' | head -1`]
         if test x$lib != x; then
             echo $lib
             return
@@ -329,8 +337,8 @@ AC_ARG_ENABLE([music-mod],
 
 SDL2MIXER_MOD_MODPLUG=0
 AC_ARG_ENABLE([music-mod-modplug],
-[AS_HELP_STRING([--enable-music-mod-modplug], [enable MOD music via modplug [default=yes]])],
-              [], [enable_music_mod_modplug=yes])
+[AS_HELP_STRING([--enable-music-mod-modplug], [enable MOD music via modplug [default=no]])],
+              [], [enable_music_mod_modplug=no])
 AC_ARG_ENABLE([music-mod-modplug-shared],
 [AS_HELP_STRING([--enable-music-mod-modplug-shared], [dynamically load modplug library [default=yes]])],
               [], [enable_music_mod_modplug_shared=yes])
@@ -381,8 +389,8 @@ fi
 SDL2MIXER_MOD_XMP=0
 SDL2MIXER_MOD_XMP_LITE=0
 AC_ARG_ENABLE([music-mod-xmp],
-[AS_HELP_STRING([--enable-music-mod-xmp], [enable MOD music via libxmp [default=no]])],
-              [], [enable_music_mod_xmp=no])
+[AS_HELP_STRING([--enable-music-mod-xmp], [enable MOD music via libxmp [default=yes]])],
+              [], [enable_music_mod_xmp=yes])
 AC_ARG_ENABLE([music-mod-xmp-lite],
 [AS_HELP_STRING([--enable-music-mod-xmp-lite], [use libxmp-lite instead of libxmp [default=no]])],
               [], [enable_music_mod_xmp_lite=no])
@@ -942,9 +950,9 @@ $(objects)/\2.lo: \1/\2.c \$(objects)/.created\\
 PLAYMUS_DEPENDS=`echo "$PLAYMUS_DEPENDS" | sed 's,\\$,\\\\$,g'`
 
 dnl Calculate the location of the prefix, relative to the cmake folder
-eval pkg_prefix=$prefix
-eval pkg_cmakedir=$libdir/cmake/SDL2_mixer
-cmake_prefix_relpath="$(echo -n "$pkg_cmakedir" | sed -E "s#^$pkg_prefix##" | sed -E "s#[A-Za-z0-9_ .-]+#..#g")"
+pkg_cmakedir='$libdir/cmake/SDL2_mixer'
+AX_COMPUTE_RELATIVE_PATHS([pkg_cmakedir:prefix:cmake_prefix_relpath])
+AC_SUBST([cmake_prefix_relpath])
 AC_SUBST([cmake_prefix_relpath])
 
 dnl Expand the sources and objects needed to build the library

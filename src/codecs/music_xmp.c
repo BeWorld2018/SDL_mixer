@@ -73,7 +73,7 @@ static xmp_loader libxmp;
 #else
 #define FUNCTION_LOADER(FUNC, SIG) \
     libxmp.FUNC = FUNC; \
-    if (libxmp.FUNC == NULL) { Mix_SetError("Missing xmp.framework"); return -1; }
+    if (libxmp.FUNC == NULL) { Mix_SetError("Missing xmp_lite.framework"); return -1; }
 #endif
 
 static int XMP_Load(void)
@@ -174,13 +174,13 @@ static void libxmp_set_error(int e)
 }
 
 static unsigned long xmp_fread(void *dst, unsigned long len, unsigned long nmemb, void *src) {
-    return SDL_RWread((SDL_RWops*)src, dst, len, nmemb);
+    return (unsigned long)SDL_RWread((SDL_RWops*)src, dst, len, nmemb);
 }
 static int xmp_fseek(void *src, long offset, int whence) {
     return (SDL_RWseek((SDL_RWops*)src, offset, whence) < 0)? -1 : 0;
 }
 static long xmp_ftell(void *src) {
-    return SDL_RWtell((SDL_RWops*)src);
+    return (long)SDL_RWtell((SDL_RWops*)src);
 }
 
 /* Load a libxmp stream from an SDL_RWops object */
