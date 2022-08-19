@@ -4,8 +4,8 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
 # See docs/release_checklist.md
 set(MAJOR_VERSION 2)
-set(MINOR_VERSION 7)
-set(MICRO_VERSION 0)
+set(MINOR_VERSION 6)
+set(MICRO_VERSION 2)
 set(SDL_REQUIRED_VERSION 2.0.9)
 
 # For historical reasons this is 3.0.0 rather than the expected 1.0.0
@@ -25,12 +25,6 @@ project(SDL2_mixer
 
 message(STATUS "Configuring ${PROJECT_NAME} ${PROJECT_VERSION}")
 
-if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
-    set(SDL2MIXER_ROOTPROJECT ON)
-else()
-    set(SDL2MIXER_ROOTPROJECT OFF)
-endif()
-
 if(POLICY CMP0112)
     # Target file component generator expressions do not add target dependencies.
     cmake_policy(SET CMP0112 NEW)
@@ -44,7 +38,7 @@ mark_as_advanced(SDL2MIXER_DEBUG_POSTFIX)
 # Assume MSVC projects don't have a package manager and need vendored dependencies (by default).
 # Most other platforms have some kind of package manager.
 # FIXME: consider a package manager such as conan/vcpkg instead of vendoring
-if(ANDROID OR MSVC)
+if(MSVC)
     set(vendored_default ON)
 else()
     set(vendored_default OFF)
@@ -61,11 +55,11 @@ option(BUILD_SHARED_LIBS "Build the library as a shared library" ON)
 # Save BUILD_SHARED_LIBS variable as soon as possible
 set(SDL2MIXER_BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS})
 
-option(SDL2MIXER_INSTALL "Enable SDL2mixer install target" ${SDL2MIXER_ROOTPROJECT})
+option(SDL2MIXER_INSTALL "Enable SDL2mixer install target" ON)
 option(SDL2MIXER_DEPS_SHARED "Default value for loading dependencies dynamically" ON)
 option(SDL2MIXER_VENDORED "Use vendored third-party libraries" ${vendored_default})
 
-option(SDL2MIXER_SAMPLES "Build the SDL2_mixer sample program(s)" ${SDL2MIXER_ROOTPROJECT})
+option(SDL2MIXER_SAMPLES "Build the SDL2_mixer sample program(s)" ON)
 cmake_dependent_option(SDL2MIXER_SAMPLES_INSTALL "Install the SDL2_mixer sample program(s)" OFF "SDL2MIXER_SAMPLES;SDL2MIXER_INSTALL" OFF)
 
 if(UNIX AND NOT APPLE)
@@ -84,11 +78,11 @@ cmake_dependent_option(SDL2MIXER_FLAC_DRFLAC "Enable FLAC music using drflac" ON
 
 option(SDL2MIXER_MOD "Support loading MOD music" ON)
 
-cmake_dependent_option(SDL2MIXER_MOD_MODPLUG "Support loading MOD music via modplug" OFF SDL2MIXER_MOD OFF)
+cmake_dependent_option(SDL2MIXER_MOD_MODPLUG "Support loading MOD music via modplug" ON SDL2MIXER_MOD OFF)
 cmake_dependent_option(SDL2MIXER_MOD_MODPLUG_SHARED "Dynamically load modplug" "${SDL2MIXER_DEPS_SHARED}" SDL2MIXER_MOD_MODPLUG OFF)
 
-cmake_dependent_option(SDL2MIXER_MOD_XMP "Support loading MOD music via libxmp" ON SDL2MIXER_MOD OFF)
-cmake_dependent_option(SDL2MIXER_MOD_XMP_LITE "Use libxmp-lite instead of libxmp" OFF "SDL2MIXER_MOD_XMP;NOT SDL2MIXER_VENDORED" OFF)
+cmake_dependent_option(SDL2MIXER_MOD_XMP "Support loading MOD music via libxmp" OFF SDL2MIXER_MOD OFF)
+cmake_dependent_option(SDL2MIXER_MOD_XMP_LITE "Use libxmp-lite instead of libxmp" OFF SDL2MIXER_MOD_XMP OFF)
 cmake_dependent_option(SDL2MIXER_MOD_XMP_SHARED "Dynamically load libxmp(-lite)" "${SDL2MIXER_DEPS_SHARED}" SDL2MIXER_MOD_XMP OFF)
 
 if(SDL2MIXER_MOD AND NOT (SDL2MIXER_MOD_MODPLUG OR SDL2MIXER_MOD_XMP))
@@ -228,6 +222,7 @@ if(WIN32 AND BUILD_SHARED_LIBS)
 endif()
 set_target_properties(SDL2_mixer PROPERTIES
     DEFINE_SYMBOL DLL_EXPORT
+    PUBLIC_HEADER "include/SDL_mixer.h"
     EXPORT_NAME ${sdl2_mixer_export_name}
     C_VISIBILITY_PRESET "hidden"
 )
@@ -299,21 +294,21 @@ if(SDL2MIXER_CMD)
     target_compile_definitions(SDL2_mixer PRIVATE MUSIC_CMD)
     set(fork_found OFF)
     if(NOT fork_found)
-        check_symbol_exists(fork unistd.h HAVE_FORK)
+        check_symbol_exists(fork sys/unistd.h HAVE_FORK)
         if(HAVE_FORK)
             set(fork_found ON)
             target_compile_definitions(SDL2_mixer PRIVATE HAVE_FORK)
         endif()
     endif()
     if(NOT fork_found)
-        check_symbol_exists(vfork unistd.h HAVE_VFORK)
+        check_symbol_exists(fork sys/unistd.h HAVE_VFORK)
         if(HAVE_VFORK)
             set(fork_found ON)
             target_compile_definitions(SDL2_mixer PRIVATE HAVE_VFORK)
         endif()
     endif()
     if(NOT fork_found)
-        message(FATAL_ERROR "Neither fork() nor vfork() or available on this platform. Reconfigure with -DSDL2MIXER_CMD=OFF.")
+        message(FATAL_ERROR "Neither fork() or vfork() or available on this platform. Reconfigure with -DSDL2MIXER_CMD=OFF.")
     endif()
 endif()
 
@@ -533,7 +528,7 @@ if(SDL2MIXER_FLAC_LIBFLAC)
             add_dependencies(SDL2_mixer FLAC)
         endif()
     else()
-        target_link_libraries(SDL2_mixer PRIVATE FLAC::FLAC)
+        target_link_libraries(SDL2_mixer PRIVATE FLAC)
     endif()
 endif()
 
@@ -588,42 +583,24 @@ endif()
 if(SDL2MIXER_MOD_XMP)
     target_compile_definitions(SDL2_mixer PRIVATE MUSIC_MOD_XMP)
     if(SDL2MIXER_VENDORED)
-        message(STATUS "Using vendored libxmp")
-        sdl_check_project_in_subfolder(external/libxmp libxmp SDL2MIXER_VENDORED)
-        if(SDL2MIXER_MOD_XMP_SHARED)
-            set(BUILD_STATIC OFF)
-            set(BUILD_SHARED ON)
-            set(tgt_xmp xmp_shared)
-        else()
-            set(BUILD_STATIC ON)
-            set(BUILD_SHARED OFF)
-            set(tgt_xmp xmp_static)
-        endif()
-        set(xmp_name libxmp)
-        add_subdirectory(external/libxmp EXCLUDE_FROM_ALL)
-        if(SDL2MIXER_MOD_XMP_SHARED OR NOT SDL2MIXER_BUILD_SHARED_LIBS)
-            list(APPEND INSTALL_EXTRA_TARGETS ${tgt_xmp})
-        endif()
+        message(STATUS "Using vendored libxmp/libxmp-lite")
+        message(WARNING "Neither libxmp or libxmp-lite are vendored. Using system libxmp instead.")
+    endif()
+    if(SDL2MIXER_MOD_XMP_LITE)
+        message(STATUS "Using system libxmp-lite")
+        find_package(libxmp-lite REQUIRED)
+        set(tgt_xmp libxmp-lite::libxmp-lite)
+        set(xmp_name libxmp-lite)
         if(NOT SDL2MIXER_MOD_XMP_SHARED)
-            list(APPEND PC_LIBS -l$<TARGET_FILE_BASE_NAME:${tgt_xmp}>)
+            list(APPEND PC_REQUIRES libxmplite)
         endif()
     else()
-        if(SDL2MIXER_MOD_XMP_LITE)
-            message(STATUS "Using system libxmp-lite")
-            find_package(libxmp-lite REQUIRED)
-            set(tgt_xmp libxmp-lite::libxmp-lite)
-            set(xmp_name libxmp-lite)
-            if(NOT SDL2MIXER_MOD_XMP_SHARED)
-                list(APPEND PC_REQUIRES libxmplite)
-            endif()
-        else()
-            message(STATUS "Using system libxmp")
-            find_package(libxmp REQUIRED)
-            set(tgt_xmp libxmp::libxmp)
-            set(xmp_name libxmp)
-            if(NOT SDL2MIXER_MOD_XMP_SHARED)
-                list(APPEND PC_REQUIRES libxmp)
-            endif()
+        message(STATUS "Using system libxmp")
+        find_package(libxmp REQUIRED)
+        set(tgt_xmp libxmp::libxmp)
+        set(xmp_name libxmp)
+        if(NOT SDL2MIXER_MOD_XMP_SHARED)
+            list(APPEND PC_REQUIRES libxmp)
         endif()
     endif()
     if(SDL2MIXER_MOD_XMP_SHARED)
@@ -764,10 +741,6 @@ if(SDL2MIXER_INSTALL)
         RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT library
         PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/SDL2" COMPONENT devel
     )
-    install(FILES
-        "${CMAKE_CURRENT_SOURCE_DIR}/include/SDL_mixer.h"
-        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/SDL2" COMPONENT devel
-    )
 
     if(INSTALL_EXTRA_TARGETS)
         install(TARGETS ${INSTALL_EXTRA_TARGETS}
@@ -846,15 +819,13 @@ if(SDL2MIXER_INSTALL)
         endif()
         # Only install a SDL2_mixer.pc file in Release mode
         install(CODE "
-            if(CMAKE_INSTALL_CONFIG_NAME MATCHES \"Release\")
-                # FIXME: use file(COPY_FILE) if minimum CMake version >= 3.21
-                execute_process(COMMAND \"\${CMAKE_COMMAND}\" -E copy_if_different
-                    \"${CMAKE_CURRENT_BINARY_DIR}/SDL2_mixer-$<CONFIG>.pc\"
-                    \"${CMAKE_CURRENT_BINARY_DIR}/SDL2_mixer.pc\")
-                file(INSTALL DESTINATION \"\${CMAKE_INSTALL_PREFIX}/${PC_DESTDIR}\"
-                    TYPE FILE
-                    FILES \"${CMAKE_CURRENT_BINARY_DIR}/SDL2_mixer.pc\")
-            endif()" COMPONENT devel)
+            # FIXME: use file(COPY_FILE) if minimum CMake version >= 3.21
+            execute_process(COMMAND \"\${CMAKE_COMMAND}\" -E copy_if_different
+                \"${CMAKE_CURRENT_BINARY_DIR}/SDL2_mixer-$<CONFIG>.pc\"
+                \"${CMAKE_CURRENT_BINARY_DIR}/SDL2_mixer.pc\")
+            file(INSTALL DESTINATION \"\${CMAKE_INSTALL_PREFIX}/${PC_DESTDIR}\"
+                TYPE FILE
+                FILES \"${CMAKE_CURRENT_BINARY_DIR}/SDL2_mixer.pc\")" CONFIG Release COMPONENT devel)
     endif()
 
     if(SDL2MIXER_BUILD_SHARED_LIBS AND (APPLE OR (UNIX AND NOT ANDROID)))
