@@ -772,4 +772,25 @@
 		(((Mix_Chunk *(*)(const char *))*(void**)(__base - 568))(__t__p0));\
 	})
 
+#define Mix_PlayChannel(__p0, __p1, __p2) \
+	({ \
+		int  __t__p0 = __p0;\
+		Mix_Chunk * __t__p1 = __p1;\
+		int  __t__p2 = __p2;\
+		long __base = (long)(SDL2_MIXER_BASE_NAME);\
+		__asm volatile("mr 12,%0": :"r"(__base):"r12");\
+		(((int (*)(int , Mix_Chunk *, int ))*(void**)(__base - 574))(__t__p0, __t__p1, __t__p2));\
+	})
+
+#define Mix_FadeInChannel(__p0, __p1, __p2, __p3) \
+	({ \
+		int  __t__p0 = __p0;\
+		Mix_Chunk * __t__p1 = __p1;\
+		int  __t__p2 = __p2;\
+		int  __t__p3 = __p3;\
+		long __base = (long)(SDL2_MIXER_BASE_NAME);\
+		__asm volatile("mr 12,%0": :"r"(__base):"r12");\
+		(((int (*)(int , Mix_Chunk *, int , int ))*(void**)(__base - 580))(__t__p0, __t__p1, __t__p2, __t__p3));\
+	})
+
 #endif /* !_PPCINLINE_SDL2_MIXER_H */

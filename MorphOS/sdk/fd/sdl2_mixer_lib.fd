@@ -95,5 +95,6 @@ Mix_GetTimidityCfg()(sysv,r12base)
 Mix_ModMusicJumpToOrder(order)(sysv,r12base)
 Mix_MasterVolume(volume)(sysv,r12base)
 Mix_LoadWAV(file)(sysv,r12base)
-
+Mix_PlayChannel(channel,chunk,loops)(sysv,r12base)
+Mix_FadeInChannel(channel,chunk,loops,ms)(sysv,r12base)
 ##end
