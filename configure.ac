@@ -3,8 +3,8 @@ dnl Process this file with autoconf to produce a configure script.
 dnl Set various version strings - taken gratefully from the GTk sources
 # See release_checklist.md
 m4_define([MAJOR_VERSION_MACRO], [2])
-m4_define([MINOR_VERSION_MACRO], [6])
-m4_define([MICRO_VERSION_MACRO], [2])
+m4_define([MINOR_VERSION_MACRO], [7])
+m4_define([MICRO_VERSION_MACRO], [0])
 
 AC_INIT([SDL2_mixer],
         [MAJOR_VERSION_MACRO.MINOR_VERSION_MACRO.MICRO_VERSION_MACRO],
@@ -66,12 +66,20 @@ dnl Detect the canonical build and host environments
 dnl AC_CANONICAL_HOST
 
 dnl Check for tools
+AC_PROG_AWK
 AC_PROG_CC
 AC_PROG_CXX
 AC_PROG_INSTALL
 AC_PROG_MAKE_SET
 LT_PROG_RC
 PKG_PROG_PKG_CONFIG
+
+if [ test -z "$AWK" ]; then
+    AC_MSG_ERROR([*** awk not found, aborting])
+fi
+
+AC_CHECK_PROGS([SORT], [gsort sort], [false])
+AS_IF([! "$SORT" -V </dev/null >/dev/null], [AC_MSG_ERROR([GNU sort(1) is required])])
 
 dnl Set up the compiler and linker flags
 case "$host" in
@@ -263,7 +271,7 @@ find_lib()
         host_lib_path="$ac_default_prefix/$base_libdir $ac_default_prefix/$base_bindir /usr/$base_libdir /usr/local/$base_libdir"
     fi
     for path in $env_lib_path $gcc_bin_path $gcc_lib_path $host_lib_path; do
-        lib=[`ls -- $path/$1 2>/dev/null | sed -e '/\.so\..*\./d' -e 's,.*/,,' | sort | tail -1`]
+        lib=[`ls -- $path/$1 2>/dev/null | sed 's,.*/,,' | $SORT -V -r | $AWK 'BEGIN{FS="."}{ print NF, $0 }' | $SORT -n -s | sed 's,[0-9]* ,,' | head -1`]
         if test x$lib != x; then
             echo $lib
             return
@@ -332,8 +340,8 @@ AC_ARG_ENABLE([music-mod],
 
 SDL2MIXER_MOD_MODPLUG=0
 AC_ARG_ENABLE([music-mod-modplug],
-[AS_HELP_STRING([--enable-music-mod-modplug], [enable MOD music via modplug [default=yes]])],
-              [], [enable_music_mod_modplug=yes])
+[AS_HELP_STRING([--enable-music-mod-modplug], [enable MOD music via modplug [default=no]])],
+              [], [enable_music_mod_modplug=no])
 AC_ARG_ENABLE([music-mod-modplug-shared],
 [AS_HELP_STRING([--enable-music-mod-modplug-shared], [dynamically load modplug library [default=yes]])],
               [], [enable_music_mod_modplug_shared=yes])
@@ -384,8 +392,8 @@ fi
 SDL2MIXER_MOD_XMP=0
 SDL2MIXER_MOD_XMP_LITE=0
 AC_ARG_ENABLE([music-mod-xmp],
-[AS_HELP_STRING([--enable-music-mod-xmp], [enable MOD music via libxmp [default=no]])],
-              [], [enable_music_mod_xmp=no])
+[AS_HELP_STRING([--enable-music-mod-xmp], [enable MOD music via libxmp [default=yes]])],
+              [], [enable_music_mod_xmp=yes])
 AC_ARG_ENABLE([music-mod-xmp-lite],
 [AS_HELP_STRING([--enable-music-mod-xmp-lite], [use libxmp-lite instead of libxmp [default=no]])],
               [], [enable_music_mod_xmp_lite=no])

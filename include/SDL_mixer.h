@@ -119,8 +119,12 @@ typedef enum
  * Initialize SDL_mixer.
  *
  * This function loads dynamic libraries that SDL_mixer needs, and prepares
- * them for use. This must be the first function you call in SDL_mixer, and if
- * it fails you should not continue with the library.
+ * them for use.
+ *
+ * Note that, unlike other SDL libraries, this call is optional! If you load a
+ * music file, SDL_mixer will handle initialization on the fly. This function
+ * will let you know, up front, whether a specific format will be available
+ * for use.
  *
  * Flags should be one or more flags from MIX_InitFlags OR'd together. It
  * returns the flags successfully initialized, or 0 on failure.
@@ -456,6 +460,15 @@ extern DECLSPEC int SDLCALL Mix_OpenAudio(int frequency, Uint16 format, int chan
  * \sa Mix_QuerySpec
  */
 extern DECLSPEC int SDLCALL Mix_OpenAudioDevice(int frequency, Uint16 format, int channels, int chunksize, const char* device, int allowed_changes);
+
+/**
+ * Suspend or resume the whole audio output.
+ *
+ * \param pause_on 1 to pause audio output, or 0 to resume.
+ *
+ * \since This function is available since SDL_mixer 2.8.0.
+ */
+extern DECLSPEC void SDLCALL Mix_PauseAudio(int pause_on);
 
 /**
  * Find out what the actual audio device parameters are.
@@ -2183,7 +2196,7 @@ extern DECLSPEC int SDLCALL Mix_ExpireChannel(int channel, int ticks);
  *
  * \param which the channel to fade out.
  * \param ms number of milliseconds to fade before halting the channel.
- * \returns 0 on success, or -1 on error.
+ * \returns the number of channels scheduled to fade.
  *
  * \since This function is available since SDL_mixer 2.0.0.
  */
