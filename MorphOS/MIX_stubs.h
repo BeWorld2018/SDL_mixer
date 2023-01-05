@@ -120,5 +120,5 @@
 	STUB(Mix_ModMusicJumpToOrder)
 	STUB(Mix_MasterVolume)
 	STUB(Mix_LoadWAV)
-	STUB(Mix_PlayChannel()
+	STUB(Mix_PlayChannel)
 	STUB(Mix_FadeInChannel)

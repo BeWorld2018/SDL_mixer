@@ -28,6 +28,11 @@ USE_FLUIDSYNTH=0
 USE_XMP=1
 # tracker music support (using libmodplug)
 USE_MODPLUG=0
+# GME
+USE_GME=0
+# wavpack music support
+USE_WAVPACK=0
+
 
 CC  = ppc-morphos-gcc-11 -noixemul 
 AR	= ppc-morphos-ar
@@ -98,6 +103,16 @@ CFLAGS+= -DMUSIC_MID_FLUIDSYNTH
 LIBS+= -lfluidsynth 
 endif
 
+ifeq ($(USE_GME),1)
+CFLAGS+= -DMUSIC_GME
+LIBS+= -lgme -lz_shared -lstdc++
+endif
+
+ifeq ($(USE_WAVPACK),1)
+CFLAGS+= -DMUSIC_WAVPACK
+LIBS+= -lwavpack
+endif
+
 ifeq ($(NEED_LIBOGG),1)
 LIBS+= -logg -lm 
 endif
@@ -130,6 +145,7 @@ SOURCES = \
 	src/codecs/music_cmd.c \
 	src/codecs/music_flac.c \
 	src/codecs/music_drflac.c \
+	src/codecs/music_wavpack.c \
 	src/codecs/music_fluidsynth.c \
 	src/codecs/music_modplug.c \
 	src/codecs/music_mpg123.c \
@@ -137,6 +153,7 @@ SOURCES = \
 	src/codecs/music_nativemidi.c \
 	src/codecs/music_opus.c \
 	src/codecs/music_ogg.c \
+	src/codecs/music_gme.c \
 	src/codecs/music_timidity.c \
 	src/codecs/music_wav.c \
 	src/codecs/music_xmp.c \
