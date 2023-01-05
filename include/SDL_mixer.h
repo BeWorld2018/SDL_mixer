@@ -112,7 +112,8 @@ typedef enum
     MIX_INIT_MP3    = 0x00000008,
     MIX_INIT_OGG    = 0x00000010,
     MIX_INIT_MID    = 0x00000020,
-    MIX_INIT_OPUS   = 0x00000040
+    MIX_INIT_OPUS   = 0x00000040,
+    MIX_INIT_WAVPACK= 0x00000080
 } MIX_InitFlags;
 
 /**
@@ -137,6 +138,7 @@ typedef enum
  * - `MIX_INIT_OGG`
  * - `MIX_INIT_MID`
  * - `MIX_INIT_OPUS`
+ * - `MIX_INIT_WAVPACK`
  *
  * More flags may be added in a future SDL_mixer release.
  *
@@ -259,7 +261,9 @@ typedef enum {
     MUS_MP3_MAD_UNUSED,
     MUS_FLAC,
     MUS_MODPLUG_UNUSED,
-    MUS_OPUS
+    MUS_OPUS,
+    MUS_WAVPACK,
+    MUS_GME
 } Mix_MusicType;
 
 /**
@@ -340,7 +344,7 @@ typedef struct _Mix_Music Mix_Music;
  * The app can use Mix_QuerySpec() to determine the final device settings.
  *
  * When done with an audio device, probably at the end of the program, the app
- * should dispose of the device with Mix_CloseDevice().
+ * should dispose of the device with Mix_CloseAudio().
  *
  * \param frequency the frequency to playback audio at (in Hz).
  * \param format audio format, one of SDL's AUDIO_* values.
@@ -352,7 +356,7 @@ typedef struct _Mix_Music Mix_Music;
  * \since This function is available since SDL_mixer 2.0.0.
  *
  * \sa Mix_OpenAudioDevice
- * \sa Mix_CloseDevice
+ * \sa Mix_CloseAudio
  */
 extern DECLSPEC int SDLCALL Mix_OpenAudio(int frequency, Uint16 format, int channels, int chunksize);
 
@@ -722,6 +726,7 @@ extern DECLSPEC Mix_Music * SDLCALL Mix_LoadMUS_RW(SDL_RWops *src, int freesrc);
  * - `MUS_MP3` (MP3 files)
  * - `MUS_FLAC` (FLAC files)
  * - `MUS_OPUS` (Opus files)
+ * - `MUS_WAVPACK` (WavPack files)
  *
  * If `freesrc` is non-zero, the RWops will be closed before returning,
  * whether this function succeeds or not. SDL_mixer reads everything it needs
@@ -2420,6 +2425,10 @@ extern DECLSPEC int SDLCALL Mix_PausedMusic(void);
  * \since This function is available since SDL_mixer 2.6.0.
  */
 extern DECLSPEC int SDLCALL Mix_ModMusicJumpToOrder(int order);
+
+/* Tracks */
+extern DECLSPEC int SDLCALL Mix_StartTrack(Mix_Music *music, int track);
+extern DECLSPEC int SDLCALL Mix_GetNumTracks(Mix_Music *music);
 
 /**
  * Set the current position in the music stream, in seconds.
