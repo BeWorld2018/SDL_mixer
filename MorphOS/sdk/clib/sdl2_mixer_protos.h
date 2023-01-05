@@ -32,7 +32,6 @@ const char * Mix_GetChunkDecoder(int index);
 SDL_bool Mix_HasChunkDecoder(const char *name);
 int Mix_GetNumMusicDecoders(void);
 const char * Mix_GetMusicDecoder(int index);
-//SDL_bool Mix_HasMusicDecoder(const char *name);
 
 Mix_MusicType Mix_GetMusicType(const Mix_Music *music);
 void Mix_SetPostMix(void (*mix_func)(void *udata, Uint8 *stream, int len), void *arg);
@@ -108,7 +107,7 @@ int Mix_MasterVolume(int volume);
 Mix_Chunk * Mix_LoadWAV(const char *file);
 int Mix_PlayChannel(int channel, Mix_Chunk *chunk, int loops);
 int Mix_FadeInChannel(int channel, Mix_Chunk *chunk, int loops, int ms);
-
+SDL_bool Mix_HasMusicDecoder(const char *name);
 #ifdef __cplusplus
 }
 #endif

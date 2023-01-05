@@ -793,4 +793,12 @@
 		(((int (*)(int , Mix_Chunk *, int , int ))*(void**)(__base - 580))(__t__p0, __t__p1, __t__p2, __t__p3));\
 	})
 
+#define Mix_HasMusicDecoder(__p0) \
+	({ \
+		const char * __t__p0 = __p0;\
+		long __base = (long)(SDL2_MIXER_BASE_NAME);\
+		__asm volatile("mr 12,%0": :"r"(__base):"r12");\
+		(((SDL_bool (*)(const char *))*(void**)(__base - 586))(__t__p0));\
+	})
+
 #endif /* !_PPCINLINE_SDL2_MIXER_H */

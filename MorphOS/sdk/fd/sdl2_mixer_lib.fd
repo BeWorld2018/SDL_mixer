@@ -77,7 +77,6 @@ Mix_GetSoundFonts()(sysv,r12base)
 Mix_EachSoundFont(function,data)(sysv,r12base)
 Mix_GetChunk(channel)(sysv,r12base)
 Mix_CloseAudio()(sysv,r12base)
-* Version
 Mix_Linked_Version()(sysv,r12base)
 Mix_GetMusicTitle(music)(sysv,r12base)
 Mix_GetMusicTitleTag(music)(sysv,r12base)
@@ -97,4 +96,5 @@ Mix_MasterVolume(volume)(sysv,r12base)
 Mix_LoadWAV(file)(sysv,r12base)
 Mix_PlayChannel(channel,chunk,loops)(sysv,r12base)
 Mix_FadeInChannel(channel,chunk,loops,ms)(sysv,r12base)
+Mix_HasMusicDecoder(a)(sysv,r12base)
 ##end

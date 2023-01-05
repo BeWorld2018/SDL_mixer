@@ -122,3 +122,5 @@
 	STUB(Mix_LoadWAV)
 	STUB(Mix_PlayChannel)
 	STUB(Mix_FadeInChannel)
+	STUB(Mix_HasMusicDecoder)
+	

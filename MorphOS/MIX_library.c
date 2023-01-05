@@ -293,8 +293,6 @@ struct Library *LIB_Open(void)
 
 			childbase->DataSeg = (char *)mem + R13_OFFSET;
 
-			//SDL2MixerBase = &childbase->Library;
-
 			if (AMIGA_Startup(childbase) == 0)
 			{
 				AMIGA_Cleanup(childbase);
@@ -334,9 +332,9 @@ error:
 
 #include "MIX_stubs.h"
 
-//extern void LIB_InitTGL();
-//extern void LIB_SetExitPointer();
-//extern void LIB_SDL_VSetError();
+extern void LIB_InitTGL();
+extern void LIB_SetExitPointer();
+extern void LIB_SDL_VSetError();
 
 static const APTR FuncTable[] =
 {
