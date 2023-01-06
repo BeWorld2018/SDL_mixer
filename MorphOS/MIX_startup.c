@@ -2,6 +2,11 @@
 
 #include "MIX_library.h"
 
+#define KILL_PENDING_AUDIO_AT_UNINIT 1
+#if KILL_PENDING_AUDIO_AT_UNINIT
+#include "SDL_mixer.h"
+#endif
+
 /*********************************************************************/
 
 extern struct Library    *SDL2Base;
@@ -30,52 +35,42 @@ APTR libnix_mempool;
 
 int SAVEDS AMIGA_Startup(struct SDL2MixerLibrary *LibBase)
 {
-	struct CTDT *ctdt = LibBase->ctdtlist, *last_ctdt = LibBase->last_ctdt;
-
 	SDL2MixerBase = &LibBase->Library;
 
 	if ((SDL2Base = OpenLibrary("sdl2.library", 53)) == NULL)
 		return 0;
-
-	// Run constructors
-	while (ctdt < last_ctdt)
-	{
-		if (ctdt->priority >= 0)
-		{
-			if (ctdt->fp() != 0)
-				return 0;
-		}
-
-		ctdt++;
-	}
 
 	return 1;
 }
 
 VOID SAVEDS AMIGA_Cleanup(struct SDL2MixerLibrary *LibBase)
 {
-	struct CTDT *ctdt = LibBase->ctdtlist, *last_ctdt = LibBase->last_ctdt;
+#if KILL_PENDING_AUDIO_AT_UNINIT
 
-	// Run destructors
-	while (ctdt < last_ctdt)
+	/*
+	 * Make sure no pending mixer objects are running. Any running
+	 * mixer object would randomly nuke the system as the userdata
+	 * points to SDL2Mixer. - Piru
+	 */
+
+	/* NOTE: Depends on Mix_QuerySpec returning audio_opened counter */
+	int cnt = Mix_QuerySpec(NULL, NULL, NULL);
+	if (cnt)
 	{
-		if (ctdt->priority < 0)
+		//kprintf("SDL_mixer/UnInit: audio is still opened, call Mix_CloseAudio %ld time%s!\n", cnt, cnt != 1 ? "s" : "");
+		do
 		{
-			if (ctdt->fp != (int (*)(void)) -1)
-			{
-				ctdt->fp();
-			}
-		}
+			Mix_CloseAudio();
+		} while (--cnt);
 
-		ctdt++;
+		//kprintf("SDL_mixer/UnInit: audio mixer stuff closed\n");
 	}
+#endif
 
-	if (SDL2Base)
-	{
-		CloseLibrary(SDL2Base);
-		SDL2Base = NULL;
-	}
+	CloseLibrary(SDL2Base);
+	SDL2Base = NULL;
+
 }
 
-void __chkabort() { }
-void abort() { }
+void __chkabort(void) { }
+void abort(void) { for (;;) Wait(0); }
