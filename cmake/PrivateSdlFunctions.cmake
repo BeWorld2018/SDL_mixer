@@ -60,7 +60,7 @@ macro(sdl_find_sdl2 TARGET VERSION)
     # or for those installations where no target is generated.
     if (NOT TARGET ${TARGET})
         message(STATUS "Using private SDL2 find module")
-        find_package(PrivateSDL2 ${VERSION} REQUIRED)
+        find_package(PrivateSDL2 ${VERSION} REQUIRED MODULE)
         add_library(${TARGET} INTERFACE IMPORTED)
         set_target_properties(${TARGET} PROPERTIES
             INTERFACE_LINK_LIBRARIES "PrivateSDL2::PrivateSDL2"
@@ -264,7 +264,7 @@ function(sdl_target_link_options_no_undefined TARGET)
             target_link_options(${TARGET} PRIVATE "-Wl,-undefined,error")
         else()
             sdl_check_linker_flag("-Wl,--no-undefined" HAVE_WL_NO_UNDEFINED)
-            if(HAVE_WL_NO_UNDEFINED)
+            if(HAVE_WL_NO_UNDEFINED AND NOT ((CMAKE_C_COMPILER_ID MATCHES "Clang") AND WIN32))
                 target_link_options(${TARGET} PRIVATE "-Wl,--no-undefined")
             endif()
         endif()
