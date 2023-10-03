@@ -220,11 +220,7 @@ extern DECLSPEC void SDLCALL Mix_Quit(void);
 
 /* Good default values for a PC soundcard */
 #define MIX_DEFAULT_FREQUENCY   44100
-#if SDL_BYTEORDER == SDL_LIL_ENDIAN
-#define MIX_DEFAULT_FORMAT  AUDIO_S16LSB
-#else
-#define MIX_DEFAULT_FORMAT  AUDIO_S16MSB
-#endif
+#define MIX_DEFAULT_FORMAT      AUDIO_S16SYS
 #define MIX_DEFAULT_CHANNELS    2
 #define MIX_MAX_VOLUME          SDL_MIX_MAXVOLUME /* Volume of a chunk */
 
@@ -929,7 +925,7 @@ extern DECLSPEC SDL_bool SDLCALL Mix_HasChunkDecoder(const char *name);
  * These return values are static, read-only data; do not modify or free it.
  * The pointers remain valid until you call Mix_CloseAudio().
  *
- * \returns number of chunk decoders available.
+ * \returns number of music decoders available.
  *
  * \since This function is available since SDL_mixer 2.0.0.
  *
@@ -2027,8 +2023,7 @@ extern DECLSPEC int SDLCALL Mix_Volume(int channel, int volume);
  *
  * The default volume for a chunk is MIX_MAX_VOLUME (no attenuation).
  *
- * \param channel the channel on set/query the volume on, or -1 for all
- *                channels.
+ * \param chunk the chunk whose volume to adjust.
  * \param volume the new volume, between 0 and MIX_MAX_VOLUME, or -1 to query.
  * \returns the previous volume. If the specified volume is -1, this returns
  *          the current volume. If `chunk` is NULL, this returns -1.
@@ -2799,6 +2794,7 @@ extern DECLSPEC void SDLCALL Mix_CloseAudio(void);
 #ifdef __cplusplus
 }
 #endif
+
 #include "close_code.h"
 
 #endif /* SDL_MIXER_H_ */
