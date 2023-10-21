@@ -2789,6 +2789,18 @@ extern DECLSPEC void SDLCALL Mix_CloseAudio(void);
  */
 #define Mix_OutOfMemory SDL_OutOfMemory
 
+#if defined(__MORPHOS__)
+	#if defined(__SDL_DEBUG)
+		#include <exec/types.h>
+		extern struct ExecBase *SysBase;
+		#define D(fmt, ...) ({((STRPTR (*)(void *, CONST_STRPTR , APTR (*)(APTR, UBYTE), STRPTR , ...))*(void**)((long)(SysBase) - 922))((void*)(SysBase), fmt, (APTR)1, NULL, ##__VA_ARGS__);})
+	#else
+		#define D(fmt, ...)
+	#endif
+#else
+	#define D(fmt, ...)
+#endif
+
 /* Ends C function definitions when using C++ */
 #ifdef __cplusplus
 }
