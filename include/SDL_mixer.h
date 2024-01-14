@@ -1,6 +1,6 @@
 /*
   SDL_mixer:  An audio mixer library based on the SDL library
-  Copyright (C) 1997-2023 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2024 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -45,8 +45,8 @@ extern "C" {
  * Printable format: "%d.%d.%d", MAJOR, MINOR, PATCHLEVEL
  */
 #define SDL_MIXER_MAJOR_VERSION 2
-#define SDL_MIXER_MINOR_VERSION 6
-#define SDL_MIXER_PATCHLEVEL    2
+#define SDL_MIXER_MINOR_VERSION 7
+#define SDL_MIXER_PATCHLEVEL    1
 
 /**
  * This macro can be used to fill a version structure with the compile-time
@@ -294,7 +294,7 @@ typedef struct _Mix_Music Mix_Music;
  * it to the correct format on demand.
  *
  * That being said, if you have control of your audio data and you know its
- * format ahead of time, you can save CPU time by opening the audio device in
+ * format ahead of time, you may save CPU time by opening the audio device in
  * that exact format so SDL_mixer does not have to spend time converting
  * anything behind the scenes, and can just pass the data straight through to
  * the hardware. On some platforms, where the hardware only supports specific
@@ -1401,7 +1401,8 @@ extern DECLSPEC int SDLCALL Mix_UnregisterEffect(int channel, Mix_EffectFunc_t f
  * zero if there's an error, not on success. We apologize for the API design
  * inconsistency here.
  *
- * \param channel the channel to unregister all effects on, or MIX_CHANNEL_POST.
+ * \param channel the channel to unregister all effects on, or
+ *                MIX_CHANNEL_POST.
  * \returns zero if error (no such channel), nonzero if all effects removed.
  *          Error messages can be retrieved from Mix_GetError().
  *
@@ -1473,7 +1474,7 @@ extern DECLSPEC int SDLCALL Mix_SetPanning(int channel, Uint8 left, Uint8 right)
  * Set the position of a channel.
  *
  * `angle` is an integer from 0 to 360, that specifies the location of the
- * sound in relation to the listener. `angle` will be reduced as neccesary
+ * sound in relation to the listener. `angle` will be reduced as necessary
  * (540 becomes 180 degrees, -100 becomes 260). Angle 0 is due north, and
  * rotates clockwise as the value increases. For efficiency, the precision of
  * this effect may be limited (angles 1 through 7 might all produce the same
@@ -1760,7 +1761,7 @@ extern DECLSPEC int SDLCALL Mix_GroupNewer(int tag);
  * \param channel the channel on which to play the new chunk.
  * \param chunk the new chunk to play.
  * \param loops the number of times the chunk should loop, -1 to loop (not
- *             actually) infinitely.
+ *              actually) infinitely.
  * \returns which channel was used to play the sound, or -1 if sound could not
  *          be played.
  *
@@ -1792,7 +1793,7 @@ extern DECLSPEC int SDLCALL Mix_PlayChannel(int channel, Mix_Chunk *chunk, int l
  * \param channel the channel on which to play the new chunk.
  * \param chunk the new chunk to play.
  * \param loops the number of times the chunk should loop, -1 to loop (not
- *             actually) infinitely.
+ *              actually) infinitely.
  * \param ticks the maximum number of milliseconds of this chunk to mix for
  *              playback.
  * \returns which channel was used to play the sound, or -1 if sound could not
@@ -1844,7 +1845,7 @@ extern DECLSPEC int SDLCALL Mix_PlayMusic(Mix_Music *music, int loops);
  *
  * \param music the new music object to play.
  * \param loops the number of times the chunk should loop, -1 to loop (not
- *             actually) infinitely.
+ *              actually) infinitely.
  * \param ms the number of milliseconds to spend fading in.
  * \returns zero on success, -1 on error.
  *
@@ -1881,7 +1882,7 @@ extern DECLSPEC int SDLCALL Mix_FadeInMusic(Mix_Music *music, int loops, int ms)
  *
  * \param music the new music object to play.
  * \param loops the number of times the chunk should loop, -1 to loop (not
- *             actually) infinitely.
+ *              actually) infinitely.
  * \param ms the number of milliseconds to spend fading in.
  * \param position the start position within the music, in seconds, where
  *                 playback should start.
@@ -1922,7 +1923,7 @@ extern DECLSPEC int SDLCALL Mix_FadeInMusicPos(Mix_Music *music, int loops, int 
  *                any available.
  * \param chunk the new chunk to play.
  * \param loops the number of times the chunk should loop, -1 to loop (not
- *             actually) infinitely.
+ *              actually) infinitely.
  * \param ms the number of milliseconds to spend fading in.
  * \returns which channel was used to play the sound, or -1 if sound could not
  *          be played.
@@ -1965,7 +1966,7 @@ extern DECLSPEC int SDLCALL Mix_FadeInChannel(int channel, Mix_Chunk *chunk, int
  *                any available.
  * \param chunk the new chunk to play.
  * \param loops the number of times the chunk should loop, -1 to loop (not
- *             actually) infinitely.
+ *              actually) infinitely.
  * \param ms the number of milliseconds to spend fading in.
  * \param ticks the maximum number of milliseconds of this chunk to mix for
  *              playback.
@@ -2008,7 +2009,7 @@ extern DECLSPEC int SDLCALL Mix_Volume(int channel, int volume);
  * Set the volume for a specific chunk.
  *
  * In addition to channels having a volume setting, individual chunks also
- * maintain a seperate volume. Both values are considered when mixing, so both
+ * maintain a separate volume. Both values are considered when mixing, so both
  * affect the final attenuation of the sound. This lets an app adjust the
  * volume for all instances of a sound in addition to specific instances of
  * that sound.
@@ -2117,8 +2118,8 @@ extern DECLSPEC int SDLCALL Mix_HaltChannel(int channel);
  * This will stop further playback on all channels with a specific tag, until
  * a new chunk is started there.
  *
- * A tag is an arbitary number that can be assigned to several mixer channels,
- * to form groups of channels.
+ * A tag is an arbitrary number that can be assigned to several mixer
+ * channels, to form groups of channels.
  *
  * The default tag for a channel is -1.
  *
@@ -2210,8 +2211,8 @@ extern DECLSPEC int SDLCALL Mix_FadeOutChannel(int which, int ms);
  * current volumes to silence over `ms` milliseconds. After that time, those
  * channels are halted.
  *
- * A tag is an arbitary number that can be assigned to several mixer channels,
- * to form groups of channels.
+ * A tag is an arbitrary number that can be assigned to several mixer
+ * channels, to form groups of channels.
  *
  * The default tag for a channel is -1.
  *
@@ -2420,8 +2421,30 @@ extern DECLSPEC int SDLCALL Mix_PausedMusic(void);
  */
 extern DECLSPEC int SDLCALL Mix_ModMusicJumpToOrder(int order);
 
-/* Tracks */
+/**
+ * Start a track in music object.
+ *
+ * This only applies to GME music formats.
+ *
+ * \param music the music object.
+ * \param track the track number to play. 0 is the first track.
+ * \returns 0 if successful, or -1 if failed or isn't implemented.
+ *
+ * \since This function is available since SDL_mixer 2.8.0.
+ */
 extern DECLSPEC int SDLCALL Mix_StartTrack(Mix_Music *music, int track);
+
+/**
+ * Get number of tracks in music object.
+ *
+ * This only applies to GME music formats.
+ *
+ * \param music the music object.
+ * \returns number of tracks if successful, or -1 if failed or isn't
+ *          implemented.
+ *
+ * \since This function is available since SDL_mixer 2.8.0.
+ */
 extern DECLSPEC int SDLCALL Mix_GetNumTracks(Mix_Music *music);
 
 /**
@@ -2809,5 +2832,3 @@ extern DECLSPEC void SDLCALL Mix_CloseAudio(void);
 #include "close_code.h"
 
 #endif /* SDL_MIXER_H_ */
-
-/* vi: set ts=4 sw=4 expandtab: */

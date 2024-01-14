@@ -5,7 +5,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 # See docs/release_checklist.md
 set(MAJOR_VERSION 2)
 set(MINOR_VERSION 7)
-set(MICRO_VERSION 0)
+set(MICRO_VERSION 1)
 set(SDL_REQUIRED_VERSION 2.0.9)
 
 include(PrivateSdlFunctions)
@@ -121,7 +121,7 @@ cmake_dependent_option(SDL2MIXER_MOD_XMP_LITE "Use libxmp-lite instead of libxmp
 cmake_dependent_option(SDL2MIXER_MOD_XMP_SHARED "Dynamically load libxmp(-lite)" "${SDL2MIXER_DEPS_SHARED}" SDL2MIXER_MOD_XMP OFF)
 
 if(SDL2MIXER_MOD AND NOT (SDL2MIXER_MOD_MODPLUG OR SDL2MIXER_MOD_XMP))
-    message(FATAL_EROR "MOD support was enabled (SDL2MIXER_MOD) but neither mpdplug (SDL2MIXER_MOD_MODPLUG) or xmp (SDL2MIXER_MOD_XMP) was enabled.")
+    message(FATAL_ERROR "MOD support was enabled (SDL2MIXER_MOD) but neither modplug (SDL2MIXER_MOD_MODPLUG) or xmp (SDL2MIXER_MOD_XMP) was enabled.")
 endif()
 
 option(SDL2MIXER_MP3 "Enable MP3 music" ON)
@@ -295,6 +295,7 @@ if(SDL2MIXER_BUILD_SHARED_LIBS)
     if(WIN32 OR OS2)
         set_target_properties(SDL2_mixer PROPERTIES
             PREFIX ""
+            DLL_NAME_WITH_SOVERSION FALSE
         )
     endif()
     if(OS2)
@@ -595,6 +596,7 @@ if(SDL2MIXER_GME)
         set(ENABLE_UBSAN OFF)
         set(BUILD_FRAMEWORK OFF)
         set(GME_ZLIB OFF)
+        set(GME_UNRAR OFF)
         message(STATUS "Using vendored libgme")
         sdl_check_project_in_subfolder(external/libgme libgme SDL2MIXER_VENDORED)
         add_subdirectory(external/libgme EXCLUDE_FROM_ALL)
@@ -689,7 +691,7 @@ if(SDL2MIXER_MOD_XMP)
             set(tgt_xmp libxmp-lite::libxmp-lite)
             set(xmp_name libxmp-lite)
             if(NOT SDL2MIXER_MOD_XMP_SHARED)
-                list(APPEND PC_REQUIRES libxmplite)
+                list(APPEND PC_REQUIRES libxmp-lite)
             endif()
         else()
             message(STATUS "Using system libxmp")
@@ -899,10 +901,8 @@ if(SDL2MIXER_INSTALL)
     if(INSTALL_EXTRA_TARGETS)
         install(TARGETS ${INSTALL_EXTRA_TARGETS}
             EXPORT SDL2MixerTargets
-            ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT devel
             LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT library
             RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT library
-            PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}" COMPONENT devel
         )
     endif()
 

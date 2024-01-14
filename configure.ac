@@ -4,7 +4,7 @@ dnl Set various version strings - taken gratefully from the GTk sources
 # See release_checklist.md
 m4_define([MAJOR_VERSION_MACRO], [2])
 m4_define([MINOR_VERSION_MACRO], [7])
-m4_define([MICRO_VERSION_MACRO], [0])
+m4_define([MICRO_VERSION_MACRO], [1])
 
 AC_INIT([SDL2_mixer],
         [MAJOR_VERSION_MACRO.MINOR_VERSION_MACRO.MICRO_VERSION_MACRO],
@@ -266,12 +266,13 @@ find_lib()
     gcc_bin_path=[`$CC -print-search-dirs 2>/dev/null | $FGREP programs: | sed 's/[^=]*=\(.*\)/\1/' | sed 's/:/ /g'`]
     gcc_lib_path=[`$CC -print-search-dirs 2>/dev/null | $FGREP libraries: | sed 's/[^=]*=\(.*\)/\1/' | sed 's/:/ /g'`]
     env_lib_path=[`echo $LIBS $LDFLAGS $* | sed 's/-L[ ]*//g'`]
+    env_bin_path=`echo $env_lib_path | sed 's,/lib,/bin,'`
     if test "$cross_compiling" = yes; then
         host_lib_path=""
     else
         host_lib_path="$ac_default_prefix/$base_libdir $ac_default_prefix/$base_bindir /usr/$base_libdir /usr/local/$base_libdir"
     fi
-    for path in $env_lib_path $gcc_bin_path $gcc_lib_path $host_lib_path; do
+    for path in $env_bin_path $env_lib_path $gcc_bin_path $gcc_lib_path $host_lib_path; do
         lib=[`ls -- $path/$1 2>/dev/null | sed 's,.*/,,' | $SORT -V -r | $AWK 'BEGIN{FS="."}{ print NF, $0 }' | $SORT -n -s | sed 's,[0-9]* ,,' | head -1`]
         if test x$lib != x; then
             echo $lib
@@ -360,7 +361,10 @@ if test x$enable_music_mod = xyes -a x$enable_music_mod_modplug = xyes; then
         have_libmodplug=yes
         case "$host" in
             *-*-darwin*)
-                modplug_lib=[`find_lib libmodplug.dylib`]
+                modplug_lib=[`find_lib "libmodplug.[0-9]*.dylib"`]
+                if test x$modplug_lib = x; then
+                    modplug_lib=[`find_lib libmodplug.dylib`]
+                fi
                 ;;
             *-*-cygwin* | *-*-mingw*)
                 modplug_lib=[`find_lib "libmodplug*.dll"`]
@@ -419,7 +423,10 @@ if test x$enable_music_mod = xyes -a x$enable_music_mod_xmp = xyes; then
         have_libxmp=yes
         case "$host" in
             *-*-darwin*)
-                xmp_lib=[`find_lib lib$xmplib.dylib`]
+                xmp_lib=[`find_lib "lib$xmplib.[0-9]*.dylib"`]
+                if test x$xmp_lib = x; then
+                    xmp_lib=[`find_lib lib$xmplib.dylib`]
+                fi
                 ;;
             *-*-cygwin* | *-*-mingw*)
                 xmp_lib=[`find_lib "lib$xmplib*.dll"`]
@@ -530,7 +537,10 @@ if test x$enable_music_midi = xyes; then
             have_fluidsynth=yes
             case "$host" in
                 *-*-darwin*)
-                    fluidsynth_lib=[`find_lib libfluidsynth.dylib`]
+                    fluidsynth_lib=[`find_lib "libfluidsynth.[0-9]*.dylib"`]
+                    if test x$fluidsynth_lib = x; then
+                        fluidsynth_lib=[`find_lib libfluidsynth.dylib`]
+                    fi
                     ;;
                 *-*-cygwin* | *-*-mingw*)
                     fluidsynth_lib=[`find_lib "fluidsynth*.dll"`]
@@ -591,7 +601,10 @@ if test x$enable_music_gme = xyes; then
         have_gme=yes
         case "$host" in
             *-*-darwin*)
-                gme_lib=[`find_lib libgme.dylib`]
+                gme_lib=[`find_lib "libgme.[0-9]*.dylib"`]
+                if test x$gme_lib = x; then
+                    gme_lib=[`find_lib libgme.dylib`]
+                fi
                 ;;
             *-*-cygwin* | *-*-mingw*)
                 gme_lib=[`find_lib "libgme*.dll"`]
@@ -614,7 +627,7 @@ if test x$enable_music_gme = xyes; then
         fi
         SDL2MIXER_GME=1
     else
-        AC_MSG_WARN([*** Unable to find GME library (https://bitbucket.org/mpyne/game-music-emu)])
+        AC_MSG_WARN([*** Unable to find GME library (https://github.com/libgme/game-music-emu)])
         AC_MSG_WARN([Game Music Emu support disabled.])
     fi
 fi
@@ -656,7 +669,10 @@ if test x$enable_music_ogg = xyes -a x$enable_music_ogg_vorbis = xyes; then
         have_vorbis=yes
         case "$host" in
             *-*-darwin*)
-                ogg_lib=[`find_lib libvorbisfile.dylib`]
+                ogg_lib=[`find_lib "libvorbisfile.[0-9]*.dylib"`]
+                if test x$ogg_lib = x; then
+                    ogg_lib=[`find_lib libvorbisfile.dylib`]
+                fi
                 ;;
             *-*-cygwin* | *-*-mingw*)
                 ogg_lib=[`find_lib "libvorbisfile*.dll"`]
@@ -709,7 +725,10 @@ if test x$enable_music_ogg = xyes -a x$enable_music_ogg_tremor = xyes; then
         have_tremor=yes
         case "$host" in
             *-*-darwin*)
-                ogg_lib=[`find_lib libvorbisidec.dylib`]
+                ogg_lib=[`find_lib "libvorbisidec.[0-9]*.dylib"`]
+                if test x$ogg_lib = x; then
+                    ogg_lib=[`find_lib libvorbisidec.dylib`]
+                fi
                 ;;
             *-*-cygwin* | *-*-mingw*)
                 ogg_lib=[`find_lib "vorbisidec*.dll"`]
@@ -799,7 +818,10 @@ if test x$enable_music_flac = xyes -a x$enable_music_flac_libflac = xyes; then
         have_libflac=yes
         case "$host" in
             *-*-darwin*)
-                flac_lib=[`find_lib libFLAC.dylib`]
+                flac_lib=[`find_lib "libFLAC.[0-9]*.dylib"`]
+                if test x$flac_lib = x; then
+                    flac_lib=[`find_lib libFLAC.dylib`]
+                fi
                 ;;
             *-*-cygwin* | *-*-mingw*)
                 flac_lib=[`find_lib "libFLAC*.dll"`]
@@ -868,7 +890,10 @@ if test x$enable_music_mp3 = xyes -a x$enable_music_mp3_mpg123 = xyes; then
         have_libmpg123=yes
         case "$host" in
             *-*-darwin*)
-                mpg123_lib=[`find_lib libmpg123.dylib`]
+                mpg123_lib=[`find_lib "libmpg123.[0-9]*.dylib"`]
+                if test x$mpg123_lib = x; then
+                    mpg123_lib=[`find_lib libmpg123.dylib`]
+                fi
                 ;;
             *-*-cygwin* | *-*-mingw*)
                 mpg123_lib=[`find_lib "libmpg123*.dll"`]
@@ -922,7 +947,10 @@ if test x$enable_music_opus = xyes; then
         have_opusfile=yes
         case "$host" in
             *-*-darwin*)
-                opusfile_lib=[`find_lib libopusfile.dylib`]
+                opusfile_lib=[`find_lib "libopusfile.[0-9]*.dylib"`]
+                if test x$opusfile_lib = x; then
+                    opusfile_lib=[`find_lib libopusfile.dylib`]
+                fi
                 ;;
             *-*-cygwin* | *-*-mingw*)
                 opusfile_lib=[`find_lib "libopusfile*.dll"`]
@@ -986,7 +1014,10 @@ if test x$enable_music_wavpack = xyes; then
         have_wavpack=yes
         case "$host" in
             *-*-darwin*)
-                wavpack_lib=[`find_lib libwavpack.dylib`]
+                wavpack_lib=[`find_lib "libwavpack.[0-9]*.dylib"`]
+                if test x$wavpack_lib = x; then
+                    wavpack_lib=[`find_lib libwavpack.dylib`]
+                fi
                 ;;
             *-*-cygwin* | *-*-mingw*)
                 wavpack_lib=[`find_lib "libwavpack*.dll"`]

@@ -1,6 +1,6 @@
 /*
   SDL_mixer:  An audio mixer library based on the SDL library
-  Copyright (C) 1997-2023 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2024 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -92,6 +92,10 @@ static vorbis_loader vorbis;
 #endif
 
 static int OGG_Load(void)
+#ifdef __APPLE__
+    /* Need to turn off optimizations so weak framework load check works */
+    __attribute__ ((optnone))
+#endif
 {
     if (vorbis.loaded == 0) {
 #ifdef OGG_DYNAMIC
@@ -215,6 +219,12 @@ static long sdl_tell_func(void *datasource)
     return (long)SDL_RWtell((SDL_RWops*)datasource);
 }
 
+static int sdl_close_func(void *datasource)
+{
+    (void)datasource;
+    return 0;
+}
+
 static int OGG_Seek(void *context, double time);
 static void OGG_Delete(void *context);
 
@@ -277,9 +287,9 @@ static void *OGG_CreateFromRW(SDL_RWops *src, int freesrc)
     music->volume = MIX_MAX_VOLUME;
     music->section = -1;
 
-    SDL_zero(callbacks);
     callbacks.read_func = sdl_read_func;
     callbacks.seek_func = sdl_seek_func;
+    callbacks.close_func = sdl_close_func;
     callbacks.tell_func = sdl_tell_func;
 
 #if defined(__MORPHOS__) && defined(USE_VORBISLIB)
@@ -595,4 +605,3 @@ Mix_MusicInterface Mix_MusicInterface_OGG =
 
 #endif /* MUSIC_OGG */
 
-/* vi: set ts=4 sw=4 expandtab: */
