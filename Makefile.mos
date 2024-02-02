@@ -19,8 +19,8 @@ USE_DRFLAC=0
 USE_OPUS=1
 # mp3 music support (using mpg123)
 USE_MPG123=1
-# mp3 music support (using dr_mp3)
-USE_DRMP3=0
+# mp3 music support (using mini_mp3)
+USE_MINIMP3=0
 # midi music support (using timidity)
 USE_TIMIDITY=1
 # midi music support (using fluidsynth)
@@ -81,8 +81,8 @@ CFLAGS+= -DMUSIC_MP3_MPG123
 LIBS+= -lmpg123_shared 
 endif
 
-ifeq ($(USE_DRMP3),1)
-CFLAGS+= -DMUSIC_MP3_DRMP3
+ifeq ($(USE_MINIMP3),1)
+CFLAGS+= -DMUSIC_MP3_MINIMP3
 endif
 
 ifeq ($(USE_XMP),1)
@@ -150,7 +150,7 @@ SOURCES = \
 	src/codecs/music_fluidsynth.c \
 	src/codecs/music_modplug.c \
 	src/codecs/music_mpg123.c \
-	src/codecs/music_drmp3.c \
+	src/codecs/music_minimp3.c \
 	src/codecs/music_nativemidi.c \
 	src/codecs/music_opus.c \
 	src/codecs/music_ogg.c \
