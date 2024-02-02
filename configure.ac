@@ -3,8 +3,8 @@ dnl Process this file with autoconf to produce a configure script.
 dnl Set various version strings - taken gratefully from the GTk sources
 # See release_checklist.md
 m4_define([MAJOR_VERSION_MACRO], [2])
-m4_define([MINOR_VERSION_MACRO], [7])
-m4_define([MICRO_VERSION_MACRO], [1])
+m4_define([MINOR_VERSION_MACRO], [8])
+m4_define([MICRO_VERSION_MACRO], [0])
 
 AC_INIT([SDL2_mixer],
         [MAJOR_VERSION_MACRO.MINOR_VERSION_MACRO.MICRO_VERSION_MACRO],
@@ -287,6 +287,8 @@ AM_PATH_SDL2($SDL_VERSION,
             :,
             AC_MSG_ERROR([*** SDL version $SDL_VERSION not found!])
 )
+CFLAGS="$CFLAGS $SDL_CFLAGS"
+LIBS="$LIBS $SDL_LIBS"
 EXTRA_CFLAGS="$EXTRA_CFLAGS $SDL_CFLAGS"
 
 dnl For use in static assertions
@@ -583,8 +585,8 @@ fi
 
 SDL2MIXER_GME=0
 AC_ARG_ENABLE([music-gme],
-[AS_HELP_STRING([--enable-music-gme], [enable Game Music Emu support [default=no]])],
-              [], [enable_music_gme=no])
+[AS_HELP_STRING([--enable-music-gme], [enable Game Music Emu support [default=yes]])],
+              [], [enable_music_gme=yes])
 AC_ARG_ENABLE([music-gme-shared],
 [AS_HELP_STRING([--enable-music-gme-shared], [dynamically load libgme library [default=yes]])],
               [], [enable_music_gme_shared=yes])
@@ -860,14 +862,14 @@ AC_ARG_ENABLE(music-mp3,
 [AS_HELP_STRING([--enable-music-mp3], [enable MP3 music [default=yes]])],
               [], enable_music_mp3=yes)
 
-SDL2MIXER_MP3_DRMP3=0
-AC_ARG_ENABLE(music-mp3-drmp3,
-[AS_HELP_STRING([--enable-music-mp3-drmp3], [enable MP3 music via dr_mp3 [default=yes]])],
-              [], [enable_music_mp3_drmp3=yes])
-if test x$enable_music_mp3 = xyes -a x$enable_music_mp3_drmp3 = xyes; then
-    have_drmp3=yes
-    EXTRA_CFLAGS="$EXTRA_CFLAGS -DMUSIC_MP3_DRMP3"
-    SDL2MIXER_MP3_DRMP3=1
+SDL2MIXER_MP3_MINIMP3=0
+AC_ARG_ENABLE(music-mp3-minimp3,
+[AS_HELP_STRING([--enable-music-mp3-minimp3], [enable MP3 music via minimp3 [default=yes]])],
+              [], [enable_music_mp3_minimp3=yes])
+if test x$enable_music_mp3 = xyes -a x$enable_music_mp3_minimp3 = xyes; then
+    have_minimp3=yes
+    EXTRA_CFLAGS="$EXTRA_CFLAGS -DMUSIC_MP3_MINIMP3"
+    SDL2MIXER_MP3_MINIMP3=1
 fi
 
 SDL2MIXER_MP3_MPG123=0
@@ -920,7 +922,7 @@ if test x$enable_music_mp3 = xyes -a x$enable_music_mp3_mpg123 = xyes; then
     fi
 fi
 
-if test x$enable_music_mp3 = xyes -a x$have_drmp3 != xyes -a x$have_libmpg123 != xyes; then
+if test x$enable_music_mp3 = xyes -a x$have_minimp3 != xyes -a x$have_libmpg123 != xyes; then
     AC_MSG_WARN([MP3 support disabled])
 fi
 
@@ -1136,7 +1138,7 @@ AC_SUBST(SDL2MIXER_GME)
 AC_SUBST(SDL2MIXER_MOD_MODPLUG)
 AC_SUBST(SDL2MIXER_MOD_XMP)
 AC_SUBST(SDL2MIXER_MOD_XMP_LITE)
-AC_SUBST(SDL2MIXER_MP3_DRMP3)
+AC_SUBST(SDL2MIXER_MP3_MINIMP3)
 AC_SUBST(SDL2MIXER_MP3_MPG123)
 AC_SUBST(SDL2MIXER_MIDI_FLUIDSYNTH)
 AC_SUBST(SDL2MIXER_MIDI_NATIVE)

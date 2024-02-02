@@ -31,9 +31,6 @@
     <ClInclude Include="..\src\codecs\music_drflac.h">
       <Filter>Sources</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\codecs\music_drmp3.h">
-      <Filter>Sources</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\codecs\music_flac.h">
       <Filter>Sources</Filter>
     </ClInclude>
@@ -41,6 +38,9 @@
       <Filter>Sources</Filter>
     </ClInclude>
     <ClInclude Include="..\src\codecs\music_gme.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\codecs\music_minimp3.h">
       <Filter>Sources</Filter>
     </ClInclude>
     <ClInclude Include="..\src\codecs\music_modplug.h">
@@ -93,52 +93,43 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="external\lib\x64\LICENSE.ogg-vorbis.txt">
+    <CustomBuild Include="external\optional\x64\libgme.dll">
       <Filter>x64</Filter>
     </CustomBuild>
-    <CustomBuild Include="external\lib\x64\LICENSE.opus.txt">
-      <Filter>x64</Filter>
-    </CustomBuild>
-    <CustomBuild Include="external\lib\x64\LICENSE.opusfile.txt">
-      <Filter>x64</Filter>
-    </CustomBuild>
-    <CustomBuild Include="external\lib\x64\LICENSE.modplug.txt">
-      <Filter>x64</Filter>
-    </CustomBuild>
-    <CustomBuild Include="external\lib\x64\libogg-0.dll">
-      <Filter>x64</Filter>
-    </CustomBuild>
-    <CustomBuild Include="external\lib\x64\libopus-0.dll">
-      <Filter>x64</Filter>
-    </CustomBuild>
-    <CustomBuild Include="external\lib\x64\libopusfile-0.dll">
-      <Filter>x64</Filter>
-    </CustomBuild>
-    <CustomBuild Include="external\lib\x64\libmodplug-1.dll">
-      <Filter>x64</Filter>
-    </CustomBuild>
-    <CustomBuild Include="external\lib\x86\LICENSE.ogg-vorbis.txt">
+    <CustomBuild Include="external\optional\x86\libgme.dll">
       <Filter>x86</Filter>
     </CustomBuild>
-    <CustomBuild Include="external\lib\x86\LICENSE.opus.txt">
+    <CustomBuild Include="external\optional\x86\libogg-0.dll">
       <Filter>x86</Filter>
     </CustomBuild>
-    <CustomBuild Include="external\lib\x86\LICENSE.opusfile.txt">
+    <CustomBuild Include="external\optional\x86\libopus-0.dll">
       <Filter>x86</Filter>
     </CustomBuild>
-    <CustomBuild Include="external\lib\x86\LICENSE.modplug.txt">
+    <CustomBuild Include="external\optional\x86\libopusfile-0.dll">
       <Filter>x86</Filter>
     </CustomBuild>
-    <CustomBuild Include="external\lib\x86\libogg-0.dll">
+    <CustomBuild Include="external\optional\x86\libwavpack-1.dll">
       <Filter>x86</Filter>
     </CustomBuild>
-    <CustomBuild Include="external\lib\x86\libopus-0.dll">
+    <CustomBuild Include="external\optional\x86\libxmp.dll">
       <Filter>x86</Filter>
     </CustomBuild>
-    <CustomBuild Include="external\lib\x86\libopusfile-0.dll">
+    <CustomBuild Include="external\optional\x86\LICENSE.gme.txt">
       <Filter>x86</Filter>
     </CustomBuild>
-    <CustomBuild Include="external\lib\x86\libmodplug-1.dll">
+    <CustomBuild Include="external\optional\x86\LICENSE.ogg-vorbis.txt">
+      <Filter>x86</Filter>
+    </CustomBuild>
+    <CustomBuild Include="external\optional\x86\LICENSE.opus.txt">
+      <Filter>x86</Filter>
+    </CustomBuild>
+    <CustomBuild Include="external\optional\x86\LICENSE.opusfile.txt">
+      <Filter>x86</Filter>
+    </CustomBuild>
+    <CustomBuild Include="external\optional\x86\LICENSE.wavpack.txt">
+      <Filter>x86</Filter>
+    </CustomBuild>
+    <CustomBuild Include="external\optional\x86\LICENSE.xmp.txt">
       <Filter>x86</Filter>
     </CustomBuild>
   </ItemGroup>
@@ -176,9 +167,6 @@
     <ClCompile Include="..\src\codecs\music_drflac.c">
       <Filter>Sources</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\codecs\music_drmp3.c">
-      <Filter>Sources</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\codecs\music_flac.c">
       <Filter>Sources</Filter>
     </ClCompile>
@@ -186,6 +174,9 @@
       <Filter>Sources</Filter>
     </ClCompile>
     <ClCompile Include="..\src\codecs\music_gme.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\codecs\music_minimp3.c">
       <Filter>Sources</Filter>
     </ClCompile>
     <ClCompile Include="..\src\codecs\music_modplug.c">
@@ -218,5 +209,40 @@
     <ClCompile Include="..\src\codecs\music_xmp.c">
       <Filter>Sources</Filter>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="external\optional\x64\libogg-0.dll">
+      <Filter>x64</Filter>
+    </None>
+    <None Include="external\optional\x64\libopus-0.dll">
+      <Filter>x64</Filter>
+    </None>
+    <None Include="external\optional\x64\libopusfile-0.dll">
+      <Filter>x64</Filter>
+    </None>
+    <None Include="external\optional\x64\libwavpack-1.dll">
+      <Filter>x64</Filter>
+    </None>
+    <None Include="external\optional\x64\libxmp.dll">
+      <Filter>x64</Filter>
+    </None>
+    <None Include="external\optional\x64\LICENSE.gme.txt">
+      <Filter>x64</Filter>
+    </None>
+    <None Include="external\optional\x64\LICENSE.ogg-vorbis.txt">
+      <Filter>x64</Filter>
+    </None>
+    <None Include="external\optional\x64\LICENSE.opus.txt">
+      <Filter>x64</Filter>
+    </None>
+    <None Include="external\optional\x64\LICENSE.opusfile.txt">
+      <Filter>x64</Filter>
+    </None>
+    <None Include="external\optional\x64\LICENSE.wavpack.txt">
+      <Filter>x64</Filter>
+    </None>
+    <None Include="external\optional\x64\LICENSE.xmp.txt">
+      <Filter>x64</Filter>
+    </None>
   </ItemGroup>
 </Project>
