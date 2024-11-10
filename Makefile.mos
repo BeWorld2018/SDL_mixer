@@ -39,8 +39,9 @@ CC  = ppc-morphos-gcc-11 -noixemul
 AR	= ppc-morphos-ar
 
 INCLUDE =  -IMorphOS/sdk -I./include -I./src/ -I./src/codecs -I/usr/local/include/SDL2 -I. -I/usr/local/include -I/usr/local/include/opus
-CFLAGS  =  -mresident32 -O2 -mcpu=750 -mtune=7450 -Wno-pointer-sign -fno-strict-aliasing -Wall -ffast-math -DHAVE_SNPRINTF -DHAVE_UNISTD_H -DHAVE_SETBUF -DHAVE_FORK $(INCLUDE)
+CFLAGS  =  -mresident32 -O3 -mcpu=750 -mtune=7450 -Wno-pointer-sign -fno-strict-aliasing -Wall -ffast-math -DHAVE_SNPRINTF -DHAVE_UNISTD_H -DHAVE_SETBUF -DHAVE_FORK $(INCLUDE)
 LIBS += -L/usr/local/lib
+SDL2_LIB = -lSDL2 -lGL
 
 ifeq ($(USE_WAV),1)
 CFLAGS+= -DMUSIC_WAV
@@ -55,9 +56,10 @@ ifeq ($(USE_TREMOR),1)
 CFLAGS+= -DOGG_USE_TREMOR
 LIBS += -lvorbisidec
 else
-CFLAGS+= -D__MORPHOS_SHAREDLIBS -DUSE_VORBISLIB 
+# -D__MORPHOS_SHAREDLIBS
+CFLAGS+= -DUSE_VORBISLIB 
+LIBS += -lvorbisfile -lvorbis -logg
 endif
-NEED_LIBOGG=1
 endif
 endif
 
@@ -78,7 +80,7 @@ endif
 
 ifeq ($(USE_MPG123),1)
 CFLAGS+= -DMUSIC_MP3_MPG123
-LIBS+= -lmpg123_shared 
+LIBS+= -lmpg123
 endif
 
 ifeq ($(USE_MINIMP3),1)
@@ -115,7 +117,7 @@ LIBS+= -lwavpack
 endif
 
 ifeq ($(NEED_LIBOGG),1)
-LIBS+= -logg -lm 
+LIBS+= -logg
 endif
 
 AMIGADATE = $(shell date +"%-d.%-m.%Y")
@@ -154,6 +156,7 @@ SOURCES = \
 	src/codecs/music_nativemidi.c \
 	src/codecs/music_opus.c \
 	src/codecs/music_ogg.c \
+	src/codecs/music_ogg_stb.o \
 	src/codecs/music_gme.c \
 	src/codecs/music_timidity.c \
 	src/codecs/music_wav.c \
@@ -200,15 +203,15 @@ $(TARGET): $(OBJECTS)
 
 $(LIBRARY): $(TARGET) $(COREOBJECTS)
 	$(LINKING)
-	$(CC) -nostartfiles -mresident32 -Wl,-Map=sdl2_mixer.map $(COREOBJECTS) -o $@.db -L. -lSDL2_mixer -L/usr/local/lib -lSDL2 -lm $(LIBS)
+	$(CC) -nostartfiles -mresident32 -Wl,-Map=sdl2_mixer.map $(COREOBJECTS) -o $@.db -L. -lSDL2_mixer -L/usr/local/lib $(SDL2_LIB) $(LIBS) -lm 
 	$(STRIPPING)
 	@ppc-morphos-strip -o $@ --remove-section=.comment $@.db
 
 playwave: sdklibs playwave.c
-	$(CC) -O2 -Wall playwave.c -o $@ $(INCLUDE) -DUSE_INLINE_STDARG  -LMorphOS/devenv/lib -L/usr/local/lib -lSDL2_mixer -lSDL2
+	$(CC) -O2 -Wall playwave.c -o $@ $(INCLUDE) -DUSE_INLINE_STDARG  -LMorphOS/devenv/lib -L/usr/local/lib -lSDL2_mixer $(SDL2_LIB) -lm 
 
 playmus: sdklibs playmus.c
-	$(CC) -O2 -Wall playmus.c -o $@ $(INCLUDE) -DUSE_INLINE_STDARG -LMorphOS/devenv/lib -L/usr/local/lib -lSDL2_mixer -lSDL2
+	$(CC) -O2 -Wall playmus.c -o $@ $(INCLUDE) -DUSE_INLINE_STDARG -LMorphOS/devenv/lib -L/usr/local/lib -lSDL2_mixer $(SDL2_LIB) -lm 
 
 clean:
 	rm -f $(LIBRARY) $(TARGET) $(OBJECTS) $(COREOBJECTS) *.db *.s
