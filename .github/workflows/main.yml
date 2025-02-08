@@ -55,7 +55,6 @@ jobs:
           autoconf \
           automake \
           libtool \
-          pkg-config \
           flac \
           fluidsynth \
           game-music-emu \
@@ -84,7 +83,7 @@ jobs:
           libwavpack-dev \
           pkg-config \
           ${NULL+}
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: recursive
 
@@ -111,7 +110,7 @@ jobs:
     - name: Check that versioning is consistent
       # We only need to run this once: arbitrarily use the Linux/CMake build
       if: "runner.os == 'Linux' && matrix.platform.cmake"
-      run: ./test-versioning.sh
+      run: ./build-scripts/test-versioning.sh
 
     - name: Configure (CMake)
       if: "matrix.platform.cmake"

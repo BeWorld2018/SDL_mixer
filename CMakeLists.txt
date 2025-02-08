@@ -5,7 +5,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 # See docs/release_checklist.md
 set(MAJOR_VERSION 2)
 set(MINOR_VERSION 8)
-set(MICRO_VERSION 0)
+set(MICRO_VERSION 1)
 set(SDL_REQUIRED_VERSION 2.0.9)
 
 include(PrivateSdlFunctions)
@@ -260,6 +260,9 @@ if(WIN32 AND BUILD_SHARED_LIBS)
     target_sources(SDL2_mixer PRIVATE
         version.rc
     )
+    if(MINGW)
+        target_link_options(SDL2_mixer PRIVATE -static-libgcc)
+    endif()
 endif()
 set_target_properties(SDL2_mixer PROPERTIES
     DEFINE_SYMBOL DLL_EXPORT
@@ -269,18 +272,14 @@ set_target_properties(SDL2_mixer PROPERTIES
 if(NOT ANDROID)
     set_target_properties(SDL2_mixer PROPERTIES
         DEBUG_POSTFIX "${SDL2MIXER_DEBUG_POSTFIX}"
+        SOVERSION "${LT_MAJOR}"
+        VERSION "${LT_VERSION}"
     )
     if(APPLE)
-        # the SOVERSION property corresponds to the compatibility version and VERSION corresponds to the current version
-        # https://cmake.org/cmake/help/latest/prop_tgt/SOVERSION.html#mach-o-versions
+        cmake_minimum_required(VERSION 3.17)
         set_target_properties(SDL2_mixer PROPERTIES
-            SOVERSION "${DYLIB_COMPATIBILITY_VERSION}"
-            VERSION "${DYLIB_CURRENT_VERSION}"
-        )
-    else()
-        set_target_properties(SDL2_mixer PROPERTIES
-            SOVERSION "${LT_MAJOR}"
-            VERSION "${LT_VERSION}"
+            MACHO_COMPATIBILITY_VERSION "${DYLIB_COMPATIBILITY_VERSION}"
+            MACHO_CURRENT_VERSION "${DYLIB_CURRENT_VERSION}"
         )
     endif()
 endif()
@@ -695,7 +694,7 @@ if(SDL2MIXER_MOD_XMP)
         else()
             message(STATUS "Using system libxmp")
             find_package(libxmp REQUIRED)
-            if(TARGET libxmp::xmp_shared AND SDL2MIXER_MOD_XMP_SHARED)
+            if(TARGET libxmp::xmp_shared)
                 set(tgt_xmp libxmp::xmp_shared)
             elseif(TARGET libxmp::xmp_static)
                 set(tgt_xmp libxmp::xmp_static)

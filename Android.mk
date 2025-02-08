@@ -30,6 +30,10 @@ MPG123_LIBRARY_PATH := external/mpg123
 SUPPORT_WAVPACK ?= true
 WAVPACK_LIBRARY_PATH := external/wavpack
 
+# Enable this if you want to support loading music via libgme
+SUPPORT_GME ?= true
+GME_LIBRARY_PATH := external/libgme
+
 # Enable this if you want to support loading MOD music via XMP-lite
 SUPPORT_MOD_XMP ?= false
 XMP_LIBRARY_PATH := external/libxmp
@@ -58,6 +62,11 @@ endif
 # Build the library
 ifeq ($(SUPPORT_WAVPACK),true)
     include $(SDL_MIXER_LOCAL_PATH)/$(WAVPACK_LIBRARY_PATH)/Android.mk
+endif
+
+# Build the library
+ifeq ($(SUPPORT_GME),true)
+    include $(SDL_MIXER_LOCAL_PATH)/$(GME_LIBRARY_PATH)/Android.mk
 endif
 
 # Build the library
@@ -126,7 +135,7 @@ endif
 
 # This needs to be a shared library to comply with the LGPL license
 ifeq ($(SUPPORT_MP3_MPG123),true)
-    LOCAL_C_INCLUDES += $(LOCAL_PATH)/$(MPG123_LIBRARY_PATH)
+    LOCAL_C_INCLUDES += $(LOCAL_PATH)/$(MPG123_LIBRARY_PATH)/android
     LOCAL_CFLAGS += -DMUSIC_MP3_MPG123
     LOCAL_SHARED_LIBRARIES += mpg123
 endif
@@ -134,6 +143,12 @@ endif
 ifeq ($(SUPPORT_WAVPACK),true)
     LOCAL_CFLAGS += -DMUSIC_WAVPACK -DMUSIC_WAVPACK_DSD -DWAVPACK_HEADER=\"../external/wavpack/include/wavpack.h\"
     LOCAL_STATIC_LIBRARIES += wavpack
+endif
+
+ifeq ($(SUPPORT_GME),true)
+    LOCAL_CFLAGS += -DMUSIC_GME
+    LOCAL_C_INCLUDES += $(LOCAL_PATH)/$(GME_LIBRARY_PATH)
+    LOCAL_STATIC_LIBRARIES += libgme
 endif
 
 ifeq ($(SUPPORT_MOD_XMP),true)

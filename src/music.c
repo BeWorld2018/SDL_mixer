@@ -1,6 +1,6 @@
 /*
   SDL_mixer:  An audio mixer library based on the SDL library
-  Copyright (C) 1997-2024 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -60,7 +60,7 @@ static int music_volume = MIX_MAX_VOLUME;
 static Mix_Music * volatile music_playing = NULL;
 SDL_AudioSpec music_spec;
 
-struct _Mix_Music {
+struct Mix_Music {
     Mix_MusicInterface *interface;
     void *context;
 
@@ -606,30 +606,20 @@ Mix_MusicType detect_music_type(SDL_RWops *src)
     }
 
     /* GME Specific files */
-    if (SDL_memcmp(magic, "ZXAY", 4) == 0)
+    if (SDL_memcmp(magic, "ZXAY", 4) == 0 ||
+         SDL_memcmp(magic, "GBS\x01", 4) == 0 ||
+         SDL_memcmp(magic, "GYMX", 4) == 0 ||
+         SDL_memcmp(magic, "HESM", 4) == 0 ||
+         SDL_memcmp(magic, "KSCC", 4) == 0 ||
+         SDL_memcmp(magic, "KSSX", 4) == 0 ||
+         SDL_memcmp(magic, "NESM", 4) == 0 ||
+         SDL_memcmp(magic, "NSFE", 4) == 0 ||
+         SDL_memcmp(magic, "SAP\x0D", 4) == 0 ||
+         SDL_memcmp(magic, "SNES", 4) == 0 ||
+         SDL_memcmp(magic, "Vgm ", 4) == 0 ||
+         SDL_memcmp(magic, "\x1f\x8b", 2) == 0) {
         return MUS_GME;
-    if (SDL_memcmp(magic, "GBS\x01", 4) == 0)
-        return MUS_GME;
-    if (SDL_memcmp(magic, "GYMX", 4) == 0)
-        return MUS_GME;
-    if (SDL_memcmp(magic, "HESM", 4) == 0)
-        return MUS_GME;
-    if (SDL_memcmp(magic, "KSCC", 4) == 0)
-        return MUS_GME;
-    if (SDL_memcmp(magic, "KSSX", 4) == 0)
-        return MUS_GME;
-    if (SDL_memcmp(magic, "NESM", 4) == 0)
-        return MUS_GME;
-    if (SDL_memcmp(magic, "NSFE", 4) == 0)
-        return MUS_GME;
-    if (SDL_memcmp(magic, "SAP\x0D", 4) == 0)
-        return MUS_GME;
-    if (SDL_memcmp(magic, "SNES", 4) == 0)
-        return MUS_GME;
-    if (SDL_memcmp(magic, "Vgm ", 4) == 0)
-        return MUS_GME;
-    if (SDL_memcmp(magic, "\x1f\x8b", 2) == 0)
-        return MUS_GME;
+    }
 
     /* Assume MOD format.
      *
@@ -1548,7 +1538,7 @@ const char* Mix_GetSoundFonts(void)
     return NULL;
 }
 
-int Mix_EachSoundFont(int (SDLCALL *function)(const char*, void*), void *data)
+int Mix_EachSoundFont(Mix_EachSoundFontCallback function, void *data)
 {
     char *context, *path, *paths;
     const char* cpaths = Mix_GetSoundFonts();
