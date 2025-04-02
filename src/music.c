@@ -1471,7 +1471,11 @@ const char* Mix_GetSoundFonts(void)
      */
     {
         static char *s_soundfont_paths[] = {
+#ifdef __MORPHOS__
+			"LIBS:soundfonts/GeneralUser GS v1.471.sf2", "LIBS:soundfonts/FluidR3_GM.sf2"
+#else
             "/usr/share/sounds/sf2/FluidR3_GM.sf2"  /* Remember to add ',' here */
+#endif
         };
         unsigned i;
 
@@ -1500,7 +1504,7 @@ bool Mix_EachSoundFont(Mix_EachSoundFontCallback function, void *data)
         return SDL_SetError("Insufficient memory to iterate over SoundFonts");
     }
 
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(__MORPHOS__)
 #define PATHSEP ";"
 #else
 #define PATHSEP ":;"

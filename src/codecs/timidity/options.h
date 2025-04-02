@@ -78,7 +78,11 @@
 
 /* The TiMidity configuration file */
 #ifndef TIMIDITY_CFG
+#ifdef __MORPHOS__
+#define TIMIDITY_CFG "LIBS:timidity/timidity.cfg"
+#else
 #define TIMIDITY_CFG "timidity.cfg"
+#endif
 #endif
 
 /* These affect general volume */

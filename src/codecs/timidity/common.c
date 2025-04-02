@@ -17,6 +17,10 @@
 #define CHAR_DIRSEP '\\'
 #define is_dirsep(c) ((c) == '/' || (c) == '\\')
 #define is_abspath(p) ((p)[0] == '/' || (p)[0] == '\\' || ((p)[0] && (p)[1] == ':'))
+#elif __MORPHOS__
+#define CHAR_DIRSEP '\\'
+#define is_dirsep(c) ((c) == '/' )
+#define is_abspath(p) ((p)[0] == '/' || ((p)[0] && (p)[1] == ':'))
 #else /* unix: */
 #define CHAR_DIRSEP '/'
 #define is_dirsep(c) ((c) == '/')
