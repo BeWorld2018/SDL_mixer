@@ -1,108 +1,110 @@
 # Makefile to build the libSDL3_mixer.a
 # 
+# NEED SDL 3.3.0 minimum !
 #
 # build per default with DRMP3, DRFLAC, libxmp, libfluidsynth, libopus, libogg
 #
 # libSDL3_mixer.a concat all libraries dependencies or use libSDL3_mixer_light.a
 #
 
-HAVEMPG123 		= 0
-HAVEDRMP3	 	= 1
-HAVEXMP			= 1
-HAVEOPUS		= 1
-HAVEFLUIDSYNTH 	= 1
-HAVETIMIDITY	= 0
-HAVEFLAC		= 0
-HAVEDRFLAC		= 1
-HAVEVORBIS_STB 	= 0
-HAVEGME			= 0
-HAVEWAVPACK		= 0
+DECODER_AIFF 			= 1
+DECODER_AU				= 1
+DECODER_FLAC_DRFLAC 	= 1
+DECODER_MP3_DRMP3		= 1
+DECODER_FLAC			= 0
+DECODER_MIDI_FLUIDSYNTH	= 1
+DECODER_GME				= 0
+DECODER_MP3_MPG123		= 0
+DECODER_OPUS			= 1
+DECODER_OGGVORBIS_STB	= 0
+DECODER_MIDI_TIMIDITY	= 0
+DECODER_VOC				= 1
+DECODER_OGGVORBIS_VORBISFILE = 1
+DECODER_WAV				= 1
+DECODER_WAVPACK			= 0
+DECODER_MOD_XMP			= 1
 
 CC  = ppc-morphos-gcc-11 
 AR	= ppc-morphos-ar
 LD	= ppc-morphos-ld
 
 CDEFS   = -DHAVE_SNPRINTF -DHAVE_UNISTD_H -DHAVE_SETBUF -DHAVE_FORK -DMUSIC_WAV
-INCLUDE =  -I. -I./include -I./src/ -I./src/codecs -I/gg/usr/local/include/SDL3 -I/gg/usr/local/include -I/gg/usr/local/include/opus
+INCLUDE =  -I. -I./include -I./src/ -I./src/dr_libs -I./src/stb_vorbis -I/gg/usr/local/include/SDL3 -I/gg/usr/local/include -I/gg/usr/local/include/opus
 CFLAGS  =  -noixemul -O3 -mcpu=750 -mtune=7450 -Wno-pointer-sign -fno-strict-aliasing -Wall -ffast-math $(INCLUDE) 
 
 LIBS_EXT = -L/gg/usr/local/lib 
 LIBS_SDL3 = -L/gg/usr/local/lib -noixemul -lSDL3 -lc -lm -lpthread -lGL
 
 SOURCES = \
-	src/mixer.c \
-	src/music.c \
-	src/utils.c \
-	src/effect_stereoreverse.c \
-	src/effects_internal.c \
-	src/effect_position.c \
-	src/codecs/load_aiff.c \
-	src/codecs/load_sndfile.c \
-	src/codecs/load_voc.c \
-	src/codecs/mp3utils.c \
-	src/codecs/music_drflac.c \
-	src/codecs/music_flac.c \
-	src/codecs/music_fluidsynth.c \
-	src/codecs/music_gme.c \
-	src/codecs/music_drmp3.c \
-	src/codecs/music_mpg123.c \
-	src/codecs/music_nativemidi.c \
-	src/codecs/music_ogg.c \
-	src/codecs/music_ogg_stb.c \
-	src/codecs/music_opus.c \
-	src/codecs/music_timidity.c \
-	src/codecs/music_wav.c \
-	src/codecs/music_wavpack.c \
-	src/codecs/music_xmp.c \
-	src/codecs/timidity/common.c src/codecs/timidity/instrum.c src/codecs/timidity/mix.c src/codecs/timidity/output.c \
-	src/codecs/timidity/playmidi.c src/codecs/timidity/readmidi.c src/codecs/timidity/resample.c \
-	src/codecs/timidity/tables.c src/codecs/timidity/timidity.c
+	src/decoder_aiff.o \
+	src/decoder_au.o \
+	src/decoder_drflac.o \
+	src/decoder_drmp3.o \
+	src/decoder_flac.o \
+	src/decoder_fluidsynth.o \
+	src/decoder_gme.o \
+	src/decoder_mpg123.o \
+	src/decoder_opus.o \
+	src/decoder_raw.o \
+	src/decoder_sinewave.o \
+	src/decoder_stb_vorbis.o \
+	src/decoder_timidity.o \
+	src/decoder_voc.o \
+	src/decoder_vorbis.o \
+	src/decoder_wav.o \
+	src/decoder_wavpack.o \
+	src/decoder_xmp.o \
+	src/SDL_mixer.o \
+	src/SDL_mixer_metadata_tags.o \
+	src/SDL_mixer_spatialization.o
 
-ifeq ($(HAVEFLAC),1)
+ifeq ($(DECODER_FLAC),1)
 LIBS_EXT 	+= -lFLAC
-CDEFS		+= -DMUSIC_FLAC_LIBFLAC
+CDEFS		+= -DDECODER_FLAC
 endif
-ifeq ($(HAVEDRFLAC),1)
+ifeq ($(DECODER_FLAC_DRFLAC),1)
 LIBS_EXT 	+= 
-CDEFS		+= -DMUSIC_FLAC_DRFLAC
+CDEFS		+= -DDECODER_FLAC_DRFLAC
 endif
-ifeq ($(HAVEFLUIDSYNTH),1)
+ifeq ($(DECODER_MIDI_FLUIDSYNTH),1)
 LIBS_EXT 	+= -lfluidsynth
-CDEFS		+= -DMUSIC_MID_FLUIDSYNTH
+CDEFS		+= -DDECODER_MIDI_FLUIDSYNTH
 endif
-ifeq ($(HAVEGME),1)
+ifeq ($(DECODER_GME),1)
 LIBS_EXT 	+= -lgme -lz_shared
-CDEFS		+= -DMUSIC_GME
+CDEFS		+= -DDECODER_GME
 endif
-ifeq ($(HAVEWAVPACK),1)
-CDEFS		+= -DMUSIC_WAVPACK
+ifeq ($(DECODER_WAVPACK),1)
+CDEFS		+= -DDECODER_WAVPACK
 endif
-ifeq ($(HAVEMPG123),1)
+ifeq ($(DECODER_MP3_MPG123),1)
 LIBS_EXT 	+= -lmpg123_shared 
-CDEFS		+= -DMUSIC_MP3_MPG123
+CDEFS		+= -DDECODER_MP3_MPG123
 endif
-ifeq ($(HAVEDRMP3),1)
+ifeq ($(DECODER_MP3_DRMP3),1)
 LIBS_EXT 	+= 
-CDEFS		+= -DMUSIC_MP3_DRMP3
+CDEFS		+= -DDECODER_MP3_DRMP3
 endif
-ifeq ($(HAVEXMP),1)
+ifeq ($(DECODER_MOD_XMP),1)
 LIBS_EXT 	+= -lxmp
-CDEFS		+= -DMUSIC_MOD_XMP
+CDEFS		+= -DDECODER_MOD_XMP
 endif
-ifeq ($(HAVEOPUS),1)
+ifeq ($(DECODER_OPUS),1)
 LIBS_EXT 	+= -lopusfile -lopus -logg -lm
-CDEFS		+= -DMUSIC_OPUS
+CDEFS		+= -DDECODER_OPUS
 endif
-ifeq ($(HAVETIMIDITY),1)
-CDEFS		+= -DMUSIC_MID_TIMIDITY -DMUSIC_USE_MIDI
+ifeq ($(DECODER_MIDI_TIMIDITY),1)
+CDEFS		+= -DDECODER_MIDI_TIMIDITY -I./src/timidity
+SOURCES 	+= 	src/timidity/common.c src/timidity/instrum.c src/timidity/mix.c src/timidity/output.c \
+				src/timidity/playmidi.c src/timidity/readmidi.c src/timidity/resample.c \
+				src/timidity/tables.c src/timidity/timidity.c
 endif
-
-ifeq ($(HAVEVORBIS_STB),1)
-CDEFS		+= -DMUSIC_OGG -DOGG_USE_STB
+ifeq ($(DECODER_OGGVORBIS_STB),1)
+CDEFS		+= -DDECODER_OGGVORBIS_STB
 endif
-ifeq ($(HAVEVORBIS_STB),0)
+ifeq ($(DECODER_OGGVORBIS_VORBISFILE),1)
 LIBS_EXT 	+= -lvorbisfile -lvorbis -logg
-CDEFS		+= -DMUSIC_OGG
+CDEFS		+= -DDECODER_OGGVORBIS_VORBISFILE
 endif
 
 LIBS_EXT +=  -lm 

@@ -117,8 +117,11 @@ static bool SDLCALL FLUIDSYNTH_init_audio(SDL_IOStream *io, SDL_AudioSpec *spec,
             sfio = SDL_IOFromFile(sfpath, "rb");
         }
     }
-
-    #ifdef SDL_PLATFORM_UNIX  // this happens to be where Ubuntu stores a usable soundfont, at least on my laptop. Try it if nothing else worked out.
+	#if defined(SDL_PLATFORM_MORPHOS)
+    if (!sfio) {
+        sfio = SDL_IOFromFile("LIBS:soundfonts/GeneralUser GS v1.471.sf2", "rb");
+    }
+	#elif defined(SDL_PLATFORM_UNIX) // this happens to be where Ubuntu stores a usable soundfont, at least on my laptop. Try it if nothing else worked out.
     if (!sfio) {
         sfio = SDL_IOFromFile("/usr/share/sounds/sf2/default-GM.sf2", "rb");
     }
