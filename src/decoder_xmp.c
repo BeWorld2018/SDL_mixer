@@ -54,6 +54,7 @@ struct xmp_callbacks {
     MIX_LOADER_FUNCTION(true,void,xmp_end_player,(xmp_context)) \
     MIX_LOADER_FUNCTION(true,void,xmp_get_module_info,(xmp_context, struct xmp_module_info *)) \
     MIX_LOADER_FUNCTION(true,int,xmp_play_frame,(xmp_context)) \
+    MIX_LOADER_FUNCTION(true,int,xmp_play_buffer,(xmp_context, void *, int, int)) \
     MIX_LOADER_FUNCTION(true,int,xmp_seek_time,(xmp_context, int)) \
     MIX_LOADER_FUNCTION(true,void,xmp_get_frame_info,(xmp_context, struct xmp_frame_info *)) \
     MIX_LOADER_FUNCTION(true,void,xmp_stop_module,(xmp_context)) \
@@ -177,7 +178,10 @@ static bool SDLCALL XMP_init_audio(SDL_IOStream *io, SDL_AudioSpec *spec, SDL_Pr
     struct xmp_frame_info frame_info;
     libxmp.xmp_get_frame_info(ctx, &frame_info);
 
-    *duration_frames = MIX_MSToFrames(spec->freq, (Uint64) frame_info.total_time);   // closest we can get.
+    *duration_frames = MIX_MSToFrames(spec->freq, (Sint64) frame_info.total_time);   // closest we can get.
+    if (*duration_frames == -1) {
+        *duration_frames = 0;
+    }
 
     libxmp.xmp_stop_module(ctx);
     libxmp.xmp_end_player(ctx);
@@ -256,7 +260,12 @@ static bool SDLCALL XMP_decode(void *track_userdata, SDL_AudioStream *stream)
 static bool SDLCALL XMP_seek(void *track_userdata, Uint64 frame)
 {
     XMP_TrackData *tdata = (XMP_TrackData *) track_userdata;
-    const int err = libxmp.xmp_seek_time(tdata->ctx, (int) MIX_FramesToMS(tdata->freq, frame));
+    Sint64 ms = MIX_FramesToMS(tdata->freq, (Sint64) frame);
+    if (ms == -1) {
+        ms = 0;
+    }
+    const int err = libxmp.xmp_seek_time(tdata->ctx, (int) ms);
+    libxmp.xmp_play_buffer(tdata->ctx, NULL, 0, 0); // reset the internal state.
     return err ? SetLibXmpError("xmp_seek_time", err) : true;
 }
 
@@ -275,7 +284,7 @@ static void SDLCALL XMP_quit_audio(void *audio_userdata)
     SDL_assert(audio_userdata == NULL);   // no state.
 }
 
-MIX_Decoder MIX_Decoder_XMP = {
+const MIX_Decoder MIX_Decoder_XMP = {
     "XMP",
     XMP_init,
     XMP_init_audio,

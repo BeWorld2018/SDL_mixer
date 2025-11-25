@@ -242,7 +242,7 @@ static bool MS_ADPCM_Init(ADPCM_DecoderInfo *info, const Uint8 *chunk_data, Uint
     Uint16 samplesperblock = SDL_Swap16LE(fmt->Samples.samplesperblock);
 
     // Number of coefficient pairs. A pair has two 16-bit integers.
-    size_t coeffcount = (size_t) (chunk_data[20] | ((size_t)chunk_data[21] << 8));
+    size_t coeffcount = (size_t)chunk_data[20] | ((size_t)chunk_data[21] << 8);
 
     // bPredictor, the integer offset into the coefficients array, is only
     // 8 bits. It can only address the first 256 coefficients. Let's limit
@@ -949,6 +949,11 @@ static bool ParseDATA(WAV_AudioData *adata, SDL_IOStream *io, Uint32 chunk_lengt
 
 static bool AddLoopPoint(WAV_AudioData *adata, Uint32 play_count, Uint32 start, Uint32 stop)
 {
+    // ignore the loop if it's bogus but carry on.
+    if (start >= stop) {
+        return true;
+    }
+
     WAVLoopPoint *loop;
     WAVLoopPoint *loops = SDL_realloc(adata->loops, (adata->numloops + 1) * sizeof(*adata->loops));
     if (!loops) {
@@ -957,16 +962,13 @@ static bool AddLoopPoint(WAV_AudioData *adata, Uint32 play_count, Uint32 start, 
 
     //SDL_Log("LOOP: count=%d start=%d stop=%d", (int) play_count, (int) start, (int) stop);
 
-    // ignore the loop if it's bogus but carry on.
-    if (start < stop) {
-        loop = &loops[adata->numloops];
-        loop->start = start;
-        loop->stop = stop;
-        loop->iterations = play_count;
+    loop = &loops[adata->numloops];
+    loop->start = start;
+    loop->stop = stop;
+    loop->iterations = play_count;
 
-        adata->loops = loops;
-        ++adata->numloops;
-    }
+    adata->loops = loops;
+    ++adata->numloops;
 
     return true;
 }
@@ -993,7 +995,7 @@ static bool ParseSMPL(WAV_AudioData *adata, SDL_IOStream *io, Uint32 chunk_lengt
         const Uint32 LOOP_TYPE_FORWARD = 0;
         const Uint32 loop_type = SDL_Swap32LE(chunk->loops[i].type);
         if (loop_type == LOOP_TYPE_FORWARD) {
-            AddLoopPoint(adata, SDL_Swap32LE(chunk->loops[i].play_count), SDL_Swap32LE(chunk->loops[i].start), SDL_Swap32LE(chunk->loops[i].end));
+            AddLoopPoint(adata, SDL_Swap32LE(chunk->loops[i].play_count), SDL_Swap32LE(chunk->loops[i].start), SDL_Swap32LE(chunk->loops[i].end) + 1);  // +1 because the end field is inclusive.
         }
     }
 
@@ -1094,7 +1096,7 @@ static void CalcSeekBlockSeek(const WAV_AudioData *adata, Uint32 actual_frame, W
     if (IsADPCM(adata->encoding)) {
         seekblock->seek_position = (Sint64) (adata->start + ((actual_frame / adata->adpcm_info.samplesperblock) * adata->adpcm_info.blocksize));
     } else {
-        seekblock->seek_position = (Sint64) (adata->start + (actual_frame * adata->framesize));
+        seekblock->seek_position = adata->start + (actual_frame * adata->framesize);
     }
 }
 
@@ -1169,7 +1171,7 @@ static bool BuildSeekBlocks(WAV_AudioData *adata)
                     const Sint64 stop_frame_block = loop_stop_frame / frames_per_block;
                     const Sint64 offset_into_stop_block = loop_stop_frame % frames_per_block;
                     const Sint64 frames_left_in_stop_block = frames_per_block - offset_into_stop_block;
-                    const Sint64 all_blocks_in_file = ((Sint64) (adata->stop - adata->start)) / frames_per_block;
+                    const Sint64 all_blocks_in_file = (adata->stop - adata->start) / frames_per_block;
                     const Sint64 blocks_left_after_stop_block = all_blocks_in_file - stop_frame_block;
                     seekblocks->num_frames = frames_left_in_stop_block + (blocks_left_after_stop_block * frames_per_block);
                 } else {
@@ -1575,7 +1577,7 @@ static void SDLCALL WAV_quit_audio(void *audio_userdata)
     SDL_free(adata);
 }
 
-MIX_Decoder MIX_Decoder_WAV = {
+const MIX_Decoder MIX_Decoder_WAV = {
     "WAV",
     NULL,  // init
     WAV_init_audio,

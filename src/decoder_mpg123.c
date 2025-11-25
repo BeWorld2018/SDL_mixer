@@ -12,7 +12,7 @@
 
   1. The origin of this software must not be misrepresented; you must not
      claim that you wrote the original software. If you use this software
-     in a product, an acknowledmpg123nt in the product documentation would be
+     in a product, an acknowledgment in the product documentation would be
      appreciated but is not required.
   2. Altered source versions must be plainly marked as such, and must not be
      misrepresented as being the original software.
@@ -443,7 +443,7 @@ static void SDLCALL MPG123_quit_audio(void *audio_userdata)
     SDL_assert(audio_userdata == NULL);  // no state.
 }
 
-MIX_Decoder MIX_Decoder_MPG123 = {
+const MIX_Decoder MIX_Decoder_MPG123 = {
     "MPG123",
     MPG123_init,
     MPG123_init_audio,

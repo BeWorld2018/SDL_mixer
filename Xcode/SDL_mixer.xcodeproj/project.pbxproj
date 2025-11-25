@@ -618,6 +618,7 @@
 		00B7E48D097EC6B300826121 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				EXPORTED_SYMBOLS_FILE = "$(SRCROOT)/../src/SDL_mixer.exports";
 			};
 			name = Debug;
 		};
@@ -635,6 +636,7 @@
 				"FRAMEWORK_SEARCH_PATHS[sdk=appletv*]" = "\"$(PROJECT_DIR)/iOS\"";
 				"FRAMEWORK_SEARCH_PATHS[sdk=iphone*]" = "\"$(PROJECT_DIR)/iOS\"";
 				"FRAMEWORK_SEARCH_PATHS[sdk=macosx*]" = "\"$(PROJECT_DIR)/macOS\"";
+				"FRAMEWORK_SEARCH_PATHS[sdk=xr*]" = "\"$(PROJECT_DIR)/iOS\"";
 				GCC_GENERATE_DEBUGGING_SYMBOLS = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_PREPROCESSOR_DEFINITIONS = (
@@ -662,9 +664,10 @@
 				MARKETING_VERSION = 3.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "org.libsdl.SDL3-mixer";
 				PRODUCT_NAME = SDL3_mixer;
-				SUPPORTED_PLATFORMS = "watchsimulator watchos macosx iphonesimulator iphoneos driverkit appletvsimulator appletvos";
+				SUPPORTED_PLATFORMS = "xrsimulator xros macosx iphonesimulator iphoneos driverkit appletvsimulator appletvos";
 				SUPPORTS_MACCATALYST = YES;
 				TVOS_DEPLOYMENT_TARGET = 11.0;
+				XROS_DEPLOYMENT_TARGET = 1.3;
 			};
 			name = Release;
 		};
@@ -683,6 +686,7 @@
 				"FRAMEWORK_SEARCH_PATHS[sdk=appletv*]" = "\"$(PROJECT_DIR)/iOS\"";
 				"FRAMEWORK_SEARCH_PATHS[sdk=iphone*]" = "\"$(PROJECT_DIR)/iOS\"";
 				"FRAMEWORK_SEARCH_PATHS[sdk=macosx*]" = "\"$(PROJECT_DIR)/macOS\"";
+				"FRAMEWORK_SEARCH_PATHS[sdk=xr*]" = "\"$(PROJECT_DIR)/iOS\"";
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
@@ -711,15 +715,17 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = "org.libsdl.SDL3-mixer";
 				PRODUCT_NAME = SDL3_mixer;
-				SUPPORTED_PLATFORMS = "watchsimulator watchos macosx iphonesimulator iphoneos driverkit appletvsimulator appletvos";
+				SUPPORTED_PLATFORMS = "xrsimulator xros macosx iphonesimulator iphoneos driverkit appletvsimulator appletvos";
 				SUPPORTS_MACCATALYST = YES;
 				TVOS_DEPLOYMENT_TARGET = 11.0;
+				XROS_DEPLOYMENT_TARGET = 1.3;
 			};
 			name = Debug;
 		};
 		F3B38D58296F8E79005DA6D3 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				EXPORTED_SYMBOLS_FILE = "$(SRCROOT)/../src/SDL_mixer.exports";
 			};
 			name = Release;
 		};

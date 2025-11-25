@@ -199,7 +199,7 @@ static Sint32 get_id3v2_len(const Uint8 *data, size_t length)
     size += ID3v2_HEADER_SIZE; // header size
     // ID3v2 header[5] is flags (bits 4-7 only, 0-3 are zero).
     // bit 4 set: footer is present (a copy of the header but
-    // with "3DI" as ident.) 
+    // with "3DI" as ident.)
     if (data[5] & 0x10) {
         size += ID3v2_HEADER_SIZE; // footer size
     }
@@ -372,7 +372,7 @@ static size_t id3v22_parse_frame(SDL_PropertiesID props, SDL_IOStream *io, Uint8
 
     handle_id3v2x2_string(props, key, buffer, read_size);
 
-    return (size_t)(size + ID3v2_2_FRAME_HEADER_SIZE); // data size + size of the header
+    return size + ID3v2_2_FRAME_HEADER_SIZE; // data size + size of the header
 }
 
 // Parse a frame in ID3v2.3 and ID3v2.4 formats
@@ -417,7 +417,7 @@ static size_t id3v2x_parse_frame(SDL_PropertiesID props, SDL_IOStream *io, Uint8
     buffer[read_size] = '\0';  // make sure it's definitely null-terminated.
     handle_id3v2_string(props, key, buffer, read_size);
 
-    return (size_t)(size + ID3v2_3_FRAME_HEADER_SIZE); // data size + size of the header
+    return size + ID3v2_3_FRAME_HEADER_SIZE; // data size + size of the header
 }
 
 // Parse content of ID3v2. This expects the stream to be seeked to the start of the potential header.
@@ -715,7 +715,7 @@ static Sint64 get_lyrics3v1_len(SDL_IOStream *io)
     if (flen < 20) {
         return -1;
     }
-    Sint64 len = (Sint64) SDL_min(flen, LYRICS3v1_SEARCH_BUFFER);
+    Sint64 len = SDL_min(flen, LYRICS3v1_SEARCH_BUFFER);
     if (SDL_SeekIO(io, -len, SDL_IO_SEEK_END) == -1) {
         return -1;
     }
@@ -868,9 +868,9 @@ static Sint64 get_musicmatch_len(SDL_IOStream *io)
     // unused section: (4 bytes of 0x00)
     if (SDL_SeekIO(io, -(len + 4), SDL_IO_SEEK_END) == -1) {
         return -1;
-    } else if (SDL_ReadIO(io, buf, 4) != 4) {
+    } else if (SDL_ReadIO(io, &j, 4) != 4) {
         return -1;
-    } else if (*((Uint32 *) buf) != 0) {
+    } else if (j != 0) {
         return -1;
     }
     #endif
@@ -1036,7 +1036,7 @@ static void ParseTrackNumString(const char *str, Sint64 *track, Sint64 *total_tr
     const char *trackstr = str;
     const char *totalstr = NULL;
     char *cpy = NULL;
-    char *ptr = (char *) SDL_strchr(str, '/');  // see if it has both track _and_ total tracks.
+    char *ptr = SDL_strchr(str, '/');  // see if it has both track _and_ total tracks.
 
     if (ptr) {
         cpy = SDL_strdup(str);

@@ -84,10 +84,12 @@ static VOC_Block *AddVocDataBlock(VOC_AudioData *adata, Sint64 iopos, const SDL_
     }
 
     VOC_Block *block = AddVocBlock(adata);
-    block->iopos = (Uint64) iopos;
-    block->loop_count = 0;
-    SDL_copyp(&block->spec, spec);
-    block->frames = frames;
+    if (block) {
+        block->iopos = (Uint64) iopos;
+        block->loop_count = 0;
+        SDL_copyp(&block->spec, spec);
+        block->frames = frames;
+    }
     return block;
 }
 
@@ -106,6 +108,7 @@ static bool ParseVocFile(SDL_IOStream *io, VOC_AudioData *adata, SDL_PropertiesI
 {
     Sint64 total_frames = 0;
     VOC_Block *loop_start = NULL;
+    int loop_start_loop_count = 0;
     Sint64 loop_frames = 0;
     SDL_AudioSpec original_spec;
     SDL_AudioSpec current_spec;
@@ -154,7 +157,7 @@ static bool ParseVocFile(SDL_IOStream *io, VOC_AudioData *adata, SDL_PropertiesI
                     return SDL_SetError("Unsupported VOC data format");
                 }
 
-                current_spec.freq = (int) (1000000 / (256 - rateu8));
+                current_spec.freq = 1000000 / (256 - rateu8);
                 current_spec.channels = 1;
                 current_spec.format = (codec == 0) ? SDL_AUDIO_U8 : SDL_AUDIO_S16LE;
 
@@ -278,6 +281,7 @@ static bool ParseVocFile(SDL_IOStream *io, VOC_AudioData *adata, SDL_PropertiesI
                 if (!loop_start) {
                     return false;
                 }
+                loop_start_loop_count = loop_start->loop_count;
                 break;
             }
 
@@ -292,10 +296,11 @@ static bool ParseVocFile(SDL_IOStream *io, VOC_AudioData *adata, SDL_PropertiesI
                 }
 
                 if (total_frames != -1) {
-                    total_frames += loop_frames * loop_start->loop_count;
+                    total_frames += loop_frames * loop_start_loop_count;
                 }
 
                 loop_start = NULL;
+                loop_start_loop_count = 0;
                 loop_frames = 0;
                 break;
             }
@@ -578,7 +583,7 @@ static void SDLCALL VOC_quit_audio(void *audio_userdata)
     SDL_free(tdata);
 }
 
-MIX_Decoder MIX_Decoder_VOC = {
+const MIX_Decoder MIX_Decoder_VOC = {
     "VOC",
     NULL, // init
     VOC_init_audio,

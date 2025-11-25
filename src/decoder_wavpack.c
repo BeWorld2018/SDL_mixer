@@ -410,14 +410,14 @@ static bool SDLCALL WAVPACK_init_audio(SDL_IOStream *io, SDL_AudioSpec *spec, SD
 
     adata->wvcdata = wvcdata;
     adata->wvcdatalen = wvcdatalen;
-    adata->numsamples = 
+    adata->numsamples =
     #if !defined(WAVPACK4_OR_OLDER) || defined(WAVPACK_DYNAMIC)
       wavpack.WavpackGetNumSamples64 ? wavpack.WavpackGetNumSamples64(ctx) :
     #endif
       wavpack.WavpackGetNumSamples(ctx);
     adata->bps = wavpack.WavpackGetBytesPerSample(ctx) << 3;
     adata->mode = wavpack.WavpackGetMode(ctx);
-    adata->channels = (int) wavpack.WavpackGetNumChannels(ctx);
+    adata->channels = wavpack.WavpackGetNumChannels(ctx);
     adata->samplerate = wavpack.WavpackGetSampleRate(ctx);
     adata->decimation = 1;
 
@@ -617,7 +617,7 @@ static void SDLCALL WAVPACK_quit_audio(void *audio_userdata)
     SDL_free(adata);
 }
 
-MIX_Decoder MIX_Decoder_WAVPACK = {
+const MIX_Decoder MIX_Decoder_WAVPACK = {
     "WAVPACK",
     WAVPACK_init,
     WAVPACK_init_audio,

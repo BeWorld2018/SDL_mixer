@@ -10,7 +10,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 set(MAJOR_VERSION 3)
 set(MINOR_VERSION 1)
 set(MICRO_VERSION 0)
-set(SDL_REQUIRED_VERSION 3.3.0)
+set(SDL_REQUIRED_VERSION 3.3.3)
 
 project(SDL3_mixer
     LANGUAGES C
@@ -47,11 +47,6 @@ if(SDLMIXER_ROOTPROJECT)
       set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "CMake build type" FORCE)
     endif()
   endif()
-endif()
-
-set(SDLMIXER_SAMPLES_DEFAULT ${SDLMIXER_ROOTPROJECT})
-if(ANDROID)
-    set(SDLMIXER_SAMPLES_DEFAULT OFF)
 endif()
 
 # option() honors normal variables.
@@ -120,8 +115,8 @@ if(SDLMIXER_STRICT)
   set(fatal_error "FATAL_ERROR")
 endif()
 
-option(SDLMIXER_SAMPLES "Build the SDL3_mixer sample program(s)" ${SDLMIXER_SAMPLES_DEFAULT})
-cmake_dependent_option(SDLMIXER_SAMPLES_INSTALL "Install the SDL3_mixer sample program(s)" OFF "SDLMIXER_SAMPLES;SDLMIXER_INSTALL" OFF)
+option(SDLMIXER_TESTS "Build unit tests?" OFF)
+option(SDLMIXER_TESTS_INSTALL "Install unit tests?" OFF)
 
 # These are implemented in SDL_mixer itself, not using a third-party library.
 option(SDLMIXER_AIFF "Enable AIFF audio" ON)
@@ -254,6 +249,8 @@ target_compile_definitions(${sdl3_mixer_target_name} PRIVATE
     SDL_BUILD_MINOR_VERSION=${MINOR_VERSION}
     SDL_BUILD_MICRO_VERSION=${MICRO_VERSION}
 )
+# Make sure SDL3's include directory comes first
+target_include_directories(${sdl3_mixer_target_name} PRIVATE $<TARGET_PROPERTY:SDL3::Headers,INTERFACE_INCLUDE_DIRECTORIES>)
 target_link_libraries(${sdl3_mixer_target_name} PUBLIC SDL3::Headers)
 if(SDLMIXER_BUILD_SHARED_LIBS)
     target_link_libraries(${sdl3_mixer_target_name} PRIVATE SDL3::SDL3-shared)
@@ -282,11 +279,14 @@ if(NOT ANDROID)
         VERSION "${SO_VERSION}"
     )
     if(APPLE)
-        cmake_minimum_required(VERSION 3.17...3.28)
         set_target_properties(${sdl3_mixer_target_name} PROPERTIES
             MACHO_COMPATIBILITY_VERSION "${DYLIB_COMPAT_VERSION}"
             MACHO_CURRENT_VERSION "${DYLIB_CURRENT_VERSION}"
         )
+        set_property(TARGET ${sdl3_mixer_target_name} APPEND PROPERTY LINK_DEPENDS
+                "${PROJECT_SOURCE_DIR}/src/SDL_mixer.exports")
+        target_link_options(${sdl3_mixer_target_name} PRIVATE
+                "SHELL:-Wl,-exported_symbols_list,${PROJECT_SOURCE_DIR}/src/SDL_mixer.exports")
     endif()
 endif()
 if(SDLMIXER_BUILD_SHARED_LIBS)
@@ -574,6 +574,12 @@ if(SDLMIXER_FLAC_LIBFLAC)
             if(NOT SDLMIXER_FLAC_LIBFLAC_SHARED)
                 list(APPEND PC_REQUIRES flac)
             endif()
+            # Xiph's CMake script does not handle Threads::Threads correctly:
+            # https://github.com/xiph/flac/issues/820
+            get_property(flac_interface_link_libraries TARGET FLAC::FLAC PROPERTY INTERFACE_LINK_LIBRARIES)
+            if(Threads::Threads IN_LIST flac_interface_link_libraries)
+                find_package(Threads)
+            endif()
         else()
             message(${fatal_error} "libflac NOT found")
         endif()
@@ -618,10 +624,10 @@ if(SDLMIXER_GME)
         set(GME_BUILD_SHARED "${SDLMIXER_GME_SHARED}")
         if(SDLMIXER_GME_SHARED)
             set(GME_BUILD_STATIC OFF)
-            set(tgt_gme gme_shared)
+            set(targets_gme gme_shared)
         else()
             set(GME_BUILD_STATIC ON)
-            set(tgt_gme gme_static)
+            set(targets_gme gme_static gme_deps)
         endif()
         set(GME_BUILD_FRAMEWORK OFF)
         set(GME_BUILD_TESTING OFF)
@@ -633,7 +639,7 @@ if(SDLMIXER_GME)
         enable_language(CXX)
         add_subdirectory(external/libgme external/libgme-build EXCLUDE_FROM_ALL)
         if(SDLMIXER_GME_SHARED OR NOT SDLMIXER_BUILD_SHARED_LIBS)
-            list(APPEND INSTALL_EXTRA_TARGETS ${tgt_gme})
+            list(APPEND INSTALL_EXTRA_TARGETS ${targets_gme})
         endif()
         if(NOT SDLMIXER_GME_SHARED)
             list(APPEND PC_LIBS -l$<TARGET_FILE_BASE_NAME:gme>)
@@ -828,7 +834,7 @@ if(SDLMIXER_MIDI_FLUIDSYNTH)
         message(${fatal_error} "FluidSynth is not vendored.")
         set(SDLMIXER_MIDI_FLUIDSYNTH_ENABLED FALSE)
     else()
-        find_package(FluidSynth ${required})
+        find_package(FluidSynth "2.2.0" ${required})
         if(FluidSynth_FOUND)
             set(SDLMIXER_MIDI_FLUIDSYNTH_ENABLED TRUE)
             message(STATUS "Using system FluidSynth")
@@ -1114,43 +1120,8 @@ if(SDLMIXER_INSTALL)
     endif()
 endif()
 
-set(SDLMIXER_SAMPLES False)  # !!! FIXME
-if(SDLMIXER_SAMPLES)
-    find_package(SDL3 REQUIRED COMPONENTS SDL3_test)
-
-    check_include_file("signal.h" HAVE_SIGNAL_H)
-    check_symbol_exists("setbuf" "stdio.h" HAVE_SETBUF)
-
-    function(add_sdl_mixer_example_executable TARGET)
-        if(ANDROID)
-            add_library(${TARGET} SHARED ${ARGN})
-        else()
-            add_executable(${TARGET} ${ARGN})
-        endif()
-        if("c_std_99" IN_LIST CMAKE_C_COMPILE_FEATURES)
-            target_compile_features(${TARGET} PRIVATE c_std_99)
-        endif()
-        sdl_add_warning_options(${TARGET} WARNING_AS_ERROR ${SDLMIXER_WERROR})
-        sdl_target_link_options_no_undefined(${TARGET})
-        target_link_libraries(${TARGET} PRIVATE SDL3::SDL3_test)
-        target_link_libraries(${TARGET} PRIVATE SDL3_mixer::${sdl3_mixer_target_name})
-        target_link_libraries(${TARGET} PRIVATE ${sdl3_target_name})
-        if(HAVE_SIGNAL_H)
-          target_compile_definitions(${TARGET} PRIVATE HAVE_SIGNAL_H)
-        endif()
-        if(HAVE_SETBUF)
-          target_compile_definitions(${TARGET} PRIVATE HAVE_SETBUF)
-        endif()
-
-        if(SDLMIXER_SAMPLES_INSTALL)
-            install(TARGETS ${TARGET}
-                RUNTIME DESTINATION "${CMAKE_INSTALL_LIBEXECDIR}/installed-tests/SDL3_mixer"
-            )
-        endif()
-    endfunction()
-
-    add_sdl_mixer_example_executable(playmus examples/playmus.c)
-    add_sdl_mixer_example_executable(playwave examples/playwave.c)
+if(SDLMIXER_TESTS)
+  add_subdirectory(test)
 endif()
 
 set(available_deps)

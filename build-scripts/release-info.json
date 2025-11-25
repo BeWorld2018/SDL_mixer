@@ -36,7 +36,6 @@
       "archs": ["x86", "x64"],
       "args": [
         "-DBUILD_SHARED_LIBS=ON",
-        "-DSDLMIXER_SNDFILE=ON",
         "-DSDLMIXER_FLAC=ON",
         "-DSDLMIXER_FLAC_DRFLAC=ON",
         "-DSDLMIXER_GME=OFF",
@@ -270,7 +269,7 @@
     ],
     "api-minimum": 19,
     "api-target": 29,
-    "ndk-minimum": 21,
+    "ndk-minimum": 28,
     "aar-files": {
       "": [
         "build-scripts/pkg-support/android/aar/__main__.py.in:__main__.py",

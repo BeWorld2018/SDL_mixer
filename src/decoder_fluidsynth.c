@@ -72,6 +72,7 @@ typedef struct FLUIDSYNTH_AudioData
 {
     const Uint8 *sfdata;
     size_t sfdatalen;
+    SDL_PropertiesID fluidsynth_props;
 } FLUIDSYNTH_AudioData;
 
 typedef struct FLUIDSYNTH_TrackData
@@ -173,6 +174,19 @@ static bool SDLCALL FLUIDSYNTH_init_audio(SDL_IOStream *io, SDL_AudioSpec *spec,
     *duration_frames = -1;  // !!! FIXME: fluid_player_get_total_ticks can give us a time duration, but we don't have a player until we set up the track later.
     *audio_userdata = adata;
 
+    const SDL_PropertiesID fluidsynth_props = (SDL_PropertiesID) SDL_GetNumberProperty(props, MIX_PROP_DECODER_FLUIDSYNTH_PROPS_NUMBER, 0);
+    if (fluidsynth_props) {
+        adata->fluidsynth_props = SDL_CreateProperties();
+        if (!adata->fluidsynth_props || !SDL_CopyProperties(fluidsynth_props, adata->fluidsynth_props)) {
+            if (adata->fluidsynth_props) {
+                SDL_DestroyProperties(adata->fluidsynth_props);
+            }
+            SDL_free(sfdata);
+            SDL_free(adata);
+            return false;
+        }
+    }
+
     return true;
 }
 
@@ -185,12 +199,12 @@ static void *SoundFontOpen(const char *filename)
     }
     return ptr;  // (this is actually an SDL_IOStream pointer.)
 }
- 
+
 static int SoundFontRead(void *buf, fluid_long_long_t count, void *handle)
 {
     return (SDL_ReadIO((SDL_IOStream *) handle, buf, count) == count) ? FLUID_OK : FLUID_FAILED;
 }
- 
+
 static int SoundFontSeek(void *handle, fluid_long_long_t offset, int origin)
 {
     SDL_IOWhence whence;
@@ -202,18 +216,31 @@ static int SoundFontSeek(void *handle, fluid_long_long_t offset, int origin)
     }
     return (SDL_SeekIO((SDL_IOStream *) handle, offset, whence) >= 0) ? FLUID_OK : FLUID_FAILED;
 }
- 
+
 static int SoundFontClose(void *handle)
 {
     SDL_CloseIO((SDL_IOStream *) handle);
     return FLUID_OK;
 }
- 
+
 static fluid_long_long_t SoundFontTell(void *handle)
 {
     return SDL_TellIO((SDL_IOStream *) handle);
 }
 
+static void SDLCALL SetCustomFluidsynthProperties(void *userdata, SDL_PropertiesID props, const char *name)
+{
+    FLUIDSYNTH_TrackData *tdata = (FLUIDSYNTH_TrackData *) userdata;
+    switch (SDL_GetPropertyType(props, name)) {
+        case SDL_PROPERTY_TYPE_NUMBER:
+            fluidsynth.fluid_settings_setint(tdata->settings, name, (int) SDL_GetNumberProperty(props, name, 0));
+            break;
+        case SDL_PROPERTY_TYPE_FLOAT:
+            fluidsynth.fluid_settings_setnum(tdata->settings, name, (double) SDL_GetFloatProperty(props, name, 0.0f));
+            break;
+        default: break;  // oh well.
+    }
+}
 
 static bool SDLCALL FLUIDSYNTH_init_track(void *audio_userdata, SDL_IOStream *io, const SDL_AudioSpec *spec, SDL_PropertiesID props, void **track_userdata)
 {
@@ -238,6 +265,9 @@ static bool SDLCALL FLUIDSYNTH_init_track(void *audio_userdata, SDL_IOStream *io
     fluidsynth.fluid_settings_setnum(tdata->settings, "synth.gain", 1.0);
     fluidsynth.fluid_settings_setnum(tdata->settings, "synth.sample-rate", (double) spec->freq);
     fluidsynth.fluid_settings_getnum(tdata->settings, "synth.sample-rate", &samplerate);
+
+    // let custom properties override anything we already set internally. You break it, you buy it!
+    SDL_EnumerateProperties(adata->fluidsynth_props, SetCustomFluidsynthProperties, tdata);
 
     tdata->synth = fluidsynth.new_fluid_synth(tdata->settings);
     if (!tdata->synth) {
@@ -341,10 +371,20 @@ static bool SDLCALL FLUIDSYNTH_seek(void *track_userdata, Uint64 frame)
     return SDL_Unsupported();
 #else
     FLUIDSYNTH_TrackData *tdata = (FLUIDSYNTH_TrackData *) track_userdata;
-    const int ticks = (int) MIX_FramesToMS(tdata->freq, frame);
+    Sint64 ticks = MIX_FramesToMS(tdata->freq, frame);
+    if (ticks == -1) {
+        ticks = 0;
+    }
 
     // !!! FIXME: docs say this will fail if a seek was requested and then a second seek happens before we play more of the midi file, since the first seek will still be in progress.
-    return (fluidsynth.fluid_player_seek(tdata->player, ticks) == FLUID_OK);
+    bool result = (fluidsynth.fluid_player_seek(tdata->player, (int)ticks) == FLUID_OK);
+
+    if (result && fluidsynth.fluid_player_get_status(tdata->player) != FLUID_PLAYER_PLAYING) {
+        /* start playing if player is done */
+        result = (fluidsynth.fluid_player_play(tdata->player) == FLUID_OK);
+    }
+
+    return result;
 #endif
 }
 
@@ -361,11 +401,12 @@ static void SDLCALL FLUIDSYNTH_quit_track(void *track_userdata)
 static void SDLCALL FLUIDSYNTH_quit_audio(void *audio_userdata)
 {
     FLUIDSYNTH_AudioData *adata = (FLUIDSYNTH_AudioData *) audio_userdata;
+    SDL_DestroyProperties(adata->fluidsynth_props);
     SDL_free((void *) adata->sfdata);
     SDL_free(adata);
 }
 
-MIX_Decoder MIX_Decoder_FLUIDSYNTH = {
+const MIX_Decoder MIX_Decoder_FLUIDSYNTH = {
     "FLUIDSYNTH",
     FLUIDSYNTH_init,
     FLUIDSYNTH_init_audio,
