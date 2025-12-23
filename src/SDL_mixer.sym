@@ -85,6 +85,8 @@ SDL3_mixer_0.0.0 {
     MIX_GetAudioDecoderProperties;
     MIX_DecodeAudio;
     MIX_GetAudioDecoderFormat;
+    MIX_SetTrackLoops;
+    MIX_GetTrackFadeFrames;
     # extra symbols go here (don't modify this line)
   local: *;
 };

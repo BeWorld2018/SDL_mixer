@@ -760,6 +760,11 @@ static MIX_Mixer *CreateMixer(SDL_AudioStream *stream)
     mixer->gain = 1.0f;
     mixer->output_stream = stream;
 
+    mixer->props = SDL_CreateProperties();
+    if (!mixer->props) {
+        goto failed;
+    }
+
     mixer->track_tags = SDL_CreateProperties();
     if (!mixer->track_tags) {
         goto failed;
@@ -769,6 +774,8 @@ static MIX_Mixer *CreateMixer(SDL_AudioStream *stream)
     if (!mixer->default_group) {
         goto failed;
     }
+
+    SDL_SetNumberProperty(mixer->props, MIX_PROP_MIXER_DEVICE_NUMBER, SDL_GetAudioStreamDevice(stream));
 
     SDL_SetAudioStreamGetCallback(stream, MixerCallback, mixer);
 
@@ -1040,7 +1047,7 @@ MIX_Audio *MIX_LoadAudioWithProperties(SDL_PropertiesID props)  // lets you spec
     audio_userdata = audio->decoder_userdata;  // less wordy access to this pointer.  :)
 
     // Go back to start of the SDL_IOStream, since we're either precaching, predecoding, or maybe just getting ready to actually play the thing.
-    if (SDL_SeekIO(io, 0, SDL_IO_SEEK_SET) == -1) {   // note this seeks to offset 0, because we're using an IoClamp.
+    if (io && (SDL_SeekIO(io, 0, SDL_IO_SEEK_SET) == -1)) {   // note this seeks to offset 0, because we're using an IoClamp.
         goto failed;
     }
 
@@ -1262,6 +1269,7 @@ MIX_Audio *MIX_CreateSineWaveAudio(MIX_Mixer *mixer, int hz, float amplitude)
     SDL_SetStringProperty(props, MIX_PROP_AUDIO_DECODER_STRING, "SINEWAVE");
     SDL_SetNumberProperty(props, MIX_PROP_DECODER_SINEWAVE_HZ_NUMBER, hz);
     SDL_SetFloatProperty(props, MIX_PROP_DECODER_SINEWAVE_AMPLITUDE_FLOAT, amplitude);
+    SDL_SetBooleanProperty(props, MIX_PROP_AUDIO_LOAD_ONDEMAND_BOOLEAN, true);
     MIX_Audio *audio = MIX_LoadAudioWithProperties(props);
     SDL_DestroyProperties(props);
     return audio;
@@ -1593,10 +1601,15 @@ bool MIX_SetTrackAudio(MIX_Track *track, MIX_Audio *audio)
 
     SDL_IOStream *io = NULL;
     if (audio) {
-        SDL_assert(audio->precache != NULL);  // external MIX_Audios shouldn't be able to get into a state where they aren't precached.
-        io = SDL_IOFromConstMem(audio->precache, audio->precachelen);
-        if (!io) {
-            return false;
+        // external MIX_Audios shouldn't be able to get into a state where they aren't precached (except SINEWAVE,
+        // which is generated on the fly). Make this assert more generic if we add another thing like SINEWAVE later!
+        SDL_assert((audio->precache != NULL) || (audio->decoder == &MIX_Decoder_SINEWAVE));
+
+        if (audio->precache) {
+            io = SDL_IOFromConstMem(audio->precache, audio->precachelen);
+            if (!io) {
+                return false;
+            }
         }
     }
 
@@ -1882,6 +1895,19 @@ Sint64 MIX_GetTrackRemaining(MIX_Track *track)
     return retval;
 }
 
+Sint64 MIX_GetTrackFadeFrames(MIX_Track *track)
+{
+    Sint64 retval = 0;
+    if (CheckTrackParam(track)) {
+        LockTrack(track);
+        if (track->state != MIX_STATE_STOPPED) {
+            retval = track->fade_frames * track->fade_direction;
+        }
+        UnlockTrack(track);
+    }
+    return retval;
+}
+
 bool MIX_TrackLooping(MIX_Track *track)
 {
     bool retval = false;
@@ -1889,6 +1915,21 @@ bool MIX_TrackLooping(MIX_Track *track)
         LockTrack(track);
         retval = ((track->state != MIX_STATE_STOPPED) && (track->loops_remaining != 0));
         UnlockTrack(track);
+    }
+    return retval;
+}
+
+bool MIX_SetTrackLoops(MIX_Track *track, int num_loops)
+{
+    bool retval = false;
+    if (CheckTrackParam(track)) {
+        if (num_loops < -1) {
+            num_loops = -1;  // keep this value consistent if we're looping infinitely.
+        }
+        LockTrack(track);
+        track->loops_remaining = num_loops;
+        UnlockTrack(track);
+        retval = true;
     }
     return retval;
 }

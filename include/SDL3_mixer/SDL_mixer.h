@@ -463,14 +463,15 @@ extern SDL_DECLSPEC MIX_Mixer * SDLCALL MIX_CreateMixer(const SDL_AudioSpec *spe
  */
 extern SDL_DECLSPEC void SDLCALL MIX_DestroyMixer(MIX_Mixer *mixer);
 
+
 /**
  * Get the properties associated with a mixer.
  *
- * Currently SDL_mixer assigns no properties of its own to a mixer, but this
- * can be a convenient place to store app-specific data.
+ * The following read-only properties are provided by SDL_mixer:
  *
- * A SDL_PropertiesID is created the first time this function is called for a
- * given mixer.
+ * - `MIX_PROP_MIXER_DEVICE_NUMBER`: the SDL_AudioDeviceID that this mixer has
+ *   opened for playback. This will be zero (no device) if the mixer was
+ *   created with Mix_CreateMixer() instead of Mix_CreateMixerDevice().
  *
  * \param mixer the mixer to query.
  * \returns a valid property ID on success or 0 on failure; call
@@ -481,6 +482,9 @@ extern SDL_DECLSPEC void SDLCALL MIX_DestroyMixer(MIX_Mixer *mixer);
  * \since This function is available since SDL_mixer 3.0.0.
  */
 extern SDL_DECLSPEC SDL_PropertiesID SDLCALL MIX_GetMixerProperties(MIX_Mixer *mixer);
+
+#define MIX_PROP_MIXER_DEVICE_NUMBER "SDL_mixer.mixer.device"
+
 
 /**
  * Get the audio format a mixer is generating.
@@ -608,6 +612,10 @@ extern SDL_DECLSPEC MIX_Audio * SDLCALL MIX_LoadAudio(MIX_Mixer *mixer, const ch
  * Please see MIX_LoadAudio_IO() for a description of what the various
  * LoadAudio functions do. This function uses properties to dictate how it
  * operates, and exposes functionality the other functions don't provide.
+ *
+ * SDL_PropertiesID are discussed in
+ * [SDL's documentation](https://wiki.libsdl.org/SDL3/CategoryProperties)
+ * .
  *
  * These are the supported properties:
  *
@@ -1312,6 +1320,30 @@ extern SDL_DECLSPEC bool SDLCALL MIX_SetTrackPlaybackPosition(MIX_Track *track, 
 extern SDL_DECLSPEC Sint64 SDLCALL MIX_GetTrackPlaybackPosition(MIX_Track *track);
 
 /**
+ * Query whether a given track is fading.
+ *
+ * This specifically checks if the track is _not stopped_ (paused or playing),
+ * and it is fading in or out, and returns the number of frames remaining in
+ * the fade.
+ *
+ * If fading out, the returned value will be negative. When fading in, the
+ * returned value will be positive. If not fading, this function returns zero.
+ *
+ * On various errors (MIX_Init() was not called, the track is NULL), this
+ * returns 0, but there is no mechanism to distinguish errors from tracks that
+ * aren't fading.
+ *
+ * \param track the track to query.
+ * \returns less than 0 if the track is fading out, greater than 0 if fading
+ *          in, zero otherwise.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL_mixer 3.0.0.
+ */
+extern SDL_DECLSPEC Sint64 SDLCALL MIX_GetTrackFadeFrames(MIX_Track *track);
+
+/**
  * Query whether a given track is looping.
  *
  * This specifically checks if the track is _not stopped_ (paused or playing),
@@ -1330,6 +1362,37 @@ extern SDL_DECLSPEC Sint64 SDLCALL MIX_GetTrackPlaybackPosition(MIX_Track *track
  * \since This function is available since SDL_mixer 3.0.0.
  */
 extern SDL_DECLSPEC bool SDLCALL MIX_TrackLooping(MIX_Track *track);
+
+/**
+ * Change the number of times a currently-playing track will loop.
+ *
+ * This replaces any previously-set remaining loops. A value of 1 will loop to
+ * the start of playback one time. Zero will not loop at all. A value of -1
+ * requests infinite loops. If the input is not seekable and `num_loops` isn't
+ * zero, this function will report success but the track will stop at the
+ * point it should loop.
+ *
+ * The new loop count replaces any previous state, even if the track has
+ * already looped.
+ *
+ * This has no effect on a track that is stopped, or rather, starting a
+ * stopped track later will set a new loop count, replacing this value.
+ * Stopped tracks can specify a loop count while starting via
+ * MIX_PROP_PLAY_LOOPS_NUMBER. This function is intended to alter that count
+ * in the middle of playback.
+ *
+ * \param track the track to configure.
+ * \param num_loops new number of times to loop. Zero to disable looping, -1
+ *                  to loop infinitely.
+ * \returns true on success, false on error; call SDL_GetError() for details.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL_mixer 3.0.0.
+ *
+ * \sa MIX_TrackLooping
+ */
+extern SDL_DECLSPEC bool SDLCALL MIX_SetTrackLoops(MIX_Track *track, int num_loops);
 
 /**
  * Query the MIX_Audio assigned to a track.
@@ -1560,6 +1623,10 @@ extern SDL_DECLSPEC Sint64 SDLCALL MIX_FramesToMS(int sample_rate, Sint64 frames
  * are specified with an SDL_PropertiesID. The parameters have reasonable
  * defaults, and specifying a 0 for `options` will choose defaults for
  * everything.
+ *
+ * SDL_PropertiesID are discussed in
+ * [SDL's documentation](https://wiki.libsdl.org/SDL3/CategoryProperties)
+ * .
  *
  * These are the supported properties:
  *
@@ -2862,6 +2929,10 @@ typedef struct MIX_AudioDecoder MIX_AudioDecoder;
  * file-specific settings, such as where to find SoundFonts for a MIDI file,
  * etc. In most cases, the caller should pass a zero to specify no extra
  * properties.
+ *
+ * SDL_PropertiesID are discussed in
+ * [SDL's documentation](https://wiki.libsdl.org/SDL3/CategoryProperties)
+ * .
  *
  * When done with the audio decoder, it can be destroyed with
  * MIX_DestroyAudioDecoder().
