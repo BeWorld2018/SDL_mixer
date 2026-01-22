@@ -1,6 +1,6 @@
 /*
   SDL_mixer:  An audio mixer library based on the SDL library
-  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -51,7 +51,7 @@ static bool SDLCALL TIMIDITY_init(void)
         return (Timidity_Init(cfg) == 0); // env or user override: no other tries
     }
 
-    for (int i = 0; i < SDL_arraysize(timidity_cfgs); i++) {
+    for (int i = 0; i < (int)SDL_arraysize(timidity_cfgs); i++) {
         if (Timidity_Init(timidity_cfgs[i]) == 0) {
             return true;
         }

@@ -1,6 +1,6 @@
 /*
   SDL_mixer:  An audio mixer library based on the SDL library
-  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -24,6 +24,15 @@
 #include "SDL_mixer_internal.h"
 
 #include <FLAC/stream_decoder.h>
+
+#if defined(FLAC_DYNAMIC) && defined(SDL_ELF_NOTE_DLOPEN)
+SDL_ELF_NOTE_DLOPEN(
+    "flac",
+    "Support for FLAC audio using libFLAC",
+    SDL_ELF_NOTE_DLOPEN_PRIORITY_SUGGESTED,
+    FLAC_DYNAMIC
+)
+#endif
 
 #ifdef FLAC_DYNAMIC
 #define MIX_LOADER_DYNAMIC FLAC_DYNAMIC
@@ -167,7 +176,7 @@ static FLAC__StreamDecoderWriteStatus FLAC_IoWrite(const FLAC__StreamDecoder *de
 
     const MIX_OggLoop *loop = &tdata->adata->loop;
     if (tdata->current_iteration < 0) {
-        if (loop->active && ((tdata->current_iteration_frames + amount) >= loop->start)) {
+        if (loop->active && ((tdata->current_iteration_frames + (Sint64)amount) >= loop->start)) {
             tdata->current_iteration = 0;  // we've hit the start of the loop point.
             tdata->current_iteration_frames = (tdata->current_iteration_frames - loop->start);  // so adding `amount` corrects this later.
         }
@@ -177,12 +186,12 @@ static FLAC__StreamDecoderWriteStatus FLAC_IoWrite(const FLAC__StreamDecoder *de
         SDL_assert(loop->active);
         SDL_assert(tdata->current_iteration_frames <= loop->len);
         const Sint64 available = loop->len - tdata->current_iteration_frames;
-        if (amount > available) {
+        if ((Sint64)amount > available) {
             amount = available;
         }
 
         SDL_assert(tdata->current_iteration_frames <= loop->len);
-        if ((tdata->current_iteration_frames + amount) >= loop->len) {  // time to loop?
+        if ((tdata->current_iteration_frames + (Sint64)amount) >= loop->len) {  // time to loop?
             bool should_loop = false;
             if (loop->count < 0) {  // negative==infinite loop
                 tdata->current_iteration = 0;
@@ -448,9 +457,9 @@ static bool SDLCALL FLAC_seek(void *track_userdata, Uint64 frame)
     Sint64 final_iteration_frames = 0;
 
     // frame has hit the loop point?
-    if (loop->active && (frame >= loop->start)) {
+    if (loop->active && ((Sint64)frame >= loop->start)) {
         // figure out the _actual_ frame in the vorbis file we're aiming for.
-        if ((loop->count < 0) || (frame < (loop->len * loop->count))) {  // literally in the loop right now.
+        if ((loop->count < 0) || ((Sint64)frame < (loop->len * loop->count))) {  // literally in the loop right now.
             frame -= loop->start;  // make logical frame index relative to start of loop.
             final_iteration = (loop->count < 0) ? 0 : (frame / loop->len);  // decide what iteration of the loop we're on (stays at zero for infinite loops).
             frame %= loop->len;  // drop iterations so we're an offset into the loop.

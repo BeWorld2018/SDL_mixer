@@ -1,6 +1,6 @@
 /*
   SDL_mixer:  An audio mixer library based on the SDL library
-  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -24,6 +24,15 @@
 #ifdef DECODER_WAVPACK
 
 #include "SDL_mixer_internal.h"
+
+#if defined(WAVPACK_DYNAMIC) && defined(SDL_ELF_NOTE_DLOPEN)
+SDL_ELF_NOTE_DLOPEN(
+    "wavpack",
+    "Support for WAVPACK audio using WavPack",
+    SDL_ELF_NOTE_DLOPEN_PRIORITY_SUGGESTED,
+    WAVPACK_DYNAMIC
+)
+#endif
 
 #define WAVPACK_DBG 0
 

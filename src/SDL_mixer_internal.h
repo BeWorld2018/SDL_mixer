@@ -1,6 +1,6 @@
 /*
   SDL_mixer:  An audio mixer library based on the SDL library
-  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -161,6 +161,7 @@ struct MIX_Track
     Sint64 total_fade_frames;  // fade in or out for this many sample frames.
     Sint64 fade_frames;  // remaining frames to fade.
     int fade_direction;  // -1: fade out  0: don't fade  1: fade in
+    float fade_start_gain;  // between 0.0f and 1.0f. Fade with this volume as the starting point (fade-in only).
     int loops_remaining;  // seek to loop_start and continue this many more times at end of input. Negative to loop forever.
     int loop_start;      // sample frame position for loops to begin, so you can play an intro once and then loop from an internal point thereafter.
     SDL_PropertiesID tags;  // lookup tags to see if they are currently applied to this track (true or false).
@@ -217,6 +218,7 @@ struct MIX_Mixer
 #define MIX_PROP_DECODER_FREQ_NUMBER "SDL_mixer.decoder.freq"
 #define MIX_PROP_DECODER_SINEWAVE_HZ_NUMBER "SDL_mixer.decoder.sinewave.hz"
 #define MIX_PROP_DECODER_SINEWAVE_AMPLITUDE_FLOAT "SDL_mixer.decoder.sinewave.amplitude"
+#define MIX_PROP_DECODER_SINEWAVE_MS_NUMBER "SDL_mixer.decoder.sinewave.ms"
 #define MIX_PROP_DECODER_WAVPACK_WVC_IOSTREAM_POINTER "SDL_mixer.decoder.wavpack.wvc_iostream"
 #define MIX_PROP_DECODER_WAVPACK_WVC_PATH_STRING "SDL_mixer.decoder.wavpack.wvc_path"
 #define MIX_PROP_DECODER_FLUIDSYNTH_SOUNDFONT_IOSTREAM_POINTER "SDL_mixer.decoder.fluidsynth.soundfont_iostream"

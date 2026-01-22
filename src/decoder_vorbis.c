@@ -1,6 +1,6 @@
 /*
   SDL_mixer:  An audio mixer library based on the SDL library
-  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -32,6 +32,15 @@
 #include <tremor/ivorbisfile.h>
 #else
 #include <vorbis/vorbisfile.h>
+#endif
+
+#if defined(MPG123_DYNAMIC) && defined(SDL_ELF_NOTE_DLOPEN)
+SDL_ELF_NOTE_DLOPEN(
+    "vorbis",
+    "Support for VORBIS audio", // vorbisfile or tremor
+    SDL_ELF_NOTE_DLOPEN_PRIORITY_SUGGESTED,
+    VORBIS_DYNAMIC
+)
 #endif
 
 #ifdef VORBIS_DYNAMIC
@@ -342,9 +351,9 @@ static bool SDLCALL VORBIS_seek(void *track_userdata, Uint64 frame)
     Sint64 final_iteration_frames = 0;
 
     // frame has hit the loop point?
-    if (loop->active && (frame >= loop->start)) {
+    if (loop->active && ((Sint64)frame >= loop->start)) {
         // figure out the _actual_ frame in the vorbis file we're aiming for.
-        if ((loop->count < 0) || (frame < (loop->len * loop->count))) {  // literally in the loop right now.
+        if ((loop->count < 0) || ((Sint64)frame < (loop->len * loop->count))) {  // literally in the loop right now.
             frame -= loop->start;  // make logical frame index relative to start of loop.
             final_iteration = (loop->count < 0) ? 0 : (frame / loop->len);  // decide what iteration of the loop we're on (stays at zero for infinite loops).
             frame %= loop->len;  // drop iterations so we're an offset into the loop.

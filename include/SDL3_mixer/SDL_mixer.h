@@ -1,6 +1,6 @@
 /*
   SDL_mixer: An audio mixer library based on the SDL library
-  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -86,10 +86,10 @@
  *
  * This library offers several features on top of mixing sounds together: a
  * track can have its own gain, to adjust its volume, in addition to a master
- * gain applied as well. One can set the "frequency ratio" of a track, to
- * speed it up or slow it down, which also adjusts its pitch. A channel map
- * can also be applied per-track, to change what speaker a given channel of
- * audio is output to.
+ * gain applied as well. One can set the "frequency ratio" of a track or the
+ * final mixed output, to speed it up or slow it down, which also adjusts its
+ * pitch. A channel map can also be applied per-track, to change what speaker
+ * a given channel of audio is output to.
  *
  * Almost all timing in SDL_mixer is in _sample frames_. Stereo PCM audio data
  * in Sint16 format takes 4 bytes per sample frame (2 bytes per sample times 2
@@ -217,7 +217,7 @@ typedef struct MIX_Group MIX_Group;
  *
  * \since This macro is available since SDL_mixer 3.0.0.
  */
-#define SDL_MIXER_MICRO_VERSION   0
+#define SDL_MIXER_MICRO_VERSION   2
 
 /**
  * This is the current version number macro of the SDL_mixer headers.
@@ -399,7 +399,7 @@ extern SDL_DECLSPEC const char * SDLCALL MIX_GetAudioDecoder(int index);
  *
  * \param devid the device to open for playback, or
  *              SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK for the default.
- * \param spec the audio format request from the device. May be NULL.
+ * \param spec the audio format to request from the device. May be NULL.
  * \returns a mixer that can be used to play audio, or NULL on failure; call
  *          SDL_GetError() for more information.
  *
@@ -781,12 +781,13 @@ extern SDL_DECLSPEC MIX_Audio * SDLCALL MIX_LoadRawAudioNoCopy(MIX_Mixer *mixer,
  * This is useful just to have _something_ to play, perhaps for testing or
  * debugging purposes.
  *
- * The resulting MIX_Audio will generate infinite audio when assigned to a
- * track.
- *
  * You specify its frequency in Hz (determines the pitch of the sinewave's
  * audio) and amplitude (determines the volume of the sinewave: 1.0f is very
  * loud, 0.0f is silent).
+ *
+ * A number of milliseconds of audio to generate can be specified. Specifying
+ * a value less than zero will generate infinite audio (when assigned to a
+ * MIX_Track, the sinewave will play forever).
  *
  * MIX_Audio objects can be shared between multiple mixers. The `mixer`
  * parameter just suggests the most likely mixer to use this audio, in case
@@ -796,6 +797,8 @@ extern SDL_DECLSPEC MIX_Audio * SDLCALL MIX_LoadRawAudioNoCopy(MIX_Mixer *mixer,
  * \param mixer a mixer this audio is intended to be used with. May be NULL.
  * \param hz the sinewave's frequency in Hz.
  * \param amplitude the sinewave's amplitude from 0.0f to 1.0f.
+ * \param ms the maximum number of milliseconds of audio to generate, or less
+ *           than zero to generate infinite audio.
  * \returns an audio object that can be used to make sound on a mixer, or NULL
  *          on failure; call SDL_GetError() for more information.
  *
@@ -807,7 +810,7 @@ extern SDL_DECLSPEC MIX_Audio * SDLCALL MIX_LoadRawAudioNoCopy(MIX_Mixer *mixer,
  * \sa MIX_SetTrackAudio
  * \sa MIX_LoadAudio_IO
  */
-extern SDL_DECLSPEC MIX_Audio * SDLCALL MIX_CreateSineWaveAudio(MIX_Mixer *mixer, int hz, float amplitude);
+extern SDL_DECLSPEC MIX_Audio * SDLCALL MIX_CreateSineWaveAudio(MIX_Mixer *mixer, int hz, float amplitude, Sint64 ms);
 
 
 /**
@@ -1244,8 +1247,10 @@ extern SDL_DECLSPEC bool SDLCALL MIX_TagTrack(MIX_Track *track, const char *tag)
  * It's legal to remove a tag that the track doesn't have; this function
  * doesn't report errors, so this simply does nothing.
  *
+ * Specifying a NULL tag will remove all tags on a track.
+ *
  * \param track the track from which to remove a tag.
- * \param tag the tag to remove.
+ * \param tag the tag to remove, or NULL to remove all current tags.
  *
  * \threadsafety It is safe to call this function from any thread.
  *
@@ -1254,6 +1259,43 @@ extern SDL_DECLSPEC bool SDLCALL MIX_TagTrack(MIX_Track *track, const char *tag)
  * \sa MIX_TagTrack
  */
 extern SDL_DECLSPEC void SDLCALL MIX_UntagTrack(MIX_Track *track, const char *tag);
+
+/**
+ * Get the tags currently associated with a track.
+ *
+ * Tags are not provided in any guaranteed order.
+ *
+ * \param track the track to query.
+ * \param count a pointer filled in with the number of tags returned, can be
+ *              NULL.
+ * \returns an array of the tags, NULL-terminated, or NULL on failure; call
+ *          SDL_GetError() for more information. This is a single allocation
+ *          that should be freed with SDL_free() when it is no longer needed.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL_mixer 3.0.0.
+ */
+extern SDL_DECLSPEC char ** SDLCALL MIX_GetTrackTags(MIX_Track *track, int *count);
+
+/**
+ * Get all tracks with a specific tag.
+ *
+ * Tracks are not provided in any guaranteed order.
+ *
+ * \param mixer the mixer to query.
+ * \param tag the tag to search.
+ * \param count a pointer filled in with the number of tracks returned, can be
+ *              NULL.
+ * \returns an array of the tracks, NULL-terminated, or NULL on failure; call
+ *          SDL_GetError() for more information. The returned pointer hould be
+ *          freed with SDL_free() when it is no longer needed.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL_mixer 3.0.0.
+ */
+extern SDL_DECLSPEC MIX_Track ** SDLCALL MIX_GetTaggedTracks(MIX_Mixer *mixer, const char *tag, int *count);
 
 /**
  * Seek a playing track to a new position in its input.
@@ -1344,24 +1386,32 @@ extern SDL_DECLSPEC Sint64 SDLCALL MIX_GetTrackPlaybackPosition(MIX_Track *track
 extern SDL_DECLSPEC Sint64 SDLCALL MIX_GetTrackFadeFrames(MIX_Track *track);
 
 /**
- * Query whether a given track is looping.
+ * Query how many loops remain for a given track.
  *
- * This specifically checks if the track is _not stopped_ (paused or playing),
- * and there is at least one loop remaining. If a track _was_ looping but is
- * on its final iteration of the loop, this will return false.
+ * This returns the number of loops still pending; if a track will eventually
+ * complete and loop to play again one more time, this will return 1. If a
+ * track _was_ looping but is on its final iteration of the loop (will stop
+ * when this iteration completes), this will return zero.
+ *
+ * A track that is looping infinitely will return -1. This value does not
+ * report an error in this case.
+ *
+ * A track that is stopped (not playing and not paused) will have zero loops
+ * remaining.
  *
  * On various errors (MIX_Init() was not called, the track is NULL), this
- * returns false, but there is no mechanism to distinguish errors from
+ * returns zero, but there is no mechanism to distinguish errors from
  * non-looping tracks.
  *
  * \param track the track to query.
- * \returns true if looping, false otherwise.
+ * \returns the number of pending loops, zero if not looping, and -1 if
+ *          looping infinitely.
  *
  * \threadsafety It is safe to call this function from any thread.
  *
  * \since This function is available since SDL_mixer 3.0.0.
  */
-extern SDL_DECLSPEC bool SDLCALL MIX_TrackLooping(MIX_Track *track);
+extern SDL_DECLSPEC int SDLCALL MIX_GetTrackLoops(MIX_Track *track);
 
 /**
  * Change the number of times a currently-playing track will loop.
@@ -1390,7 +1440,7 @@ extern SDL_DECLSPEC bool SDLCALL MIX_TrackLooping(MIX_Track *track);
  *
  * \since This function is available since SDL_mixer 3.0.0.
  *
- * \sa MIX_TrackLooping
+ * \sa MIX_GetTrackLoops
  */
 extern SDL_DECLSPEC bool SDLCALL MIX_SetTrackLoops(MIX_Track *track, int num_loops);
 
@@ -1670,6 +1720,10 @@ extern SDL_DECLSPEC Sint64 SDLCALL MIX_FramesToMS(int sample_rate, Sint64 frames
  *   MIX_PROP_PLAY_FADE_IN_FRAMES_NUMBER property, but the value is specified
  *   in milliseconds instead of sample frames. If both properties are
  *   specified, the sample frames value is favored. Default 0.
+ * - `MIX_PROP_PLAY_FADE_IN_START_GAIN_FLOAT`: If fading in, start fading from
+ *   this volume level. 0.0f is silence and 1.0f is full volume, every in
+ *   between is a linear change in gain. The specified value will be clamped
+ *   between 0.0f and 1.0f. Default 0.0f.
  * - `MIX_PROP_PLAY_APPEND_SILENCE_FRAMES_NUMBER`: At the end of mixing this
  *   track, after all loops are complete, append this many sample frames of
  *   silence as if it were part of the audio file. This allows for apps to
@@ -1711,6 +1765,7 @@ extern SDL_DECLSPEC bool SDLCALL MIX_PlayTrack(MIX_Track *track, SDL_PropertiesI
 #define MIX_PROP_PLAY_LOOP_START_MILLISECOND_NUMBER "SDL_mixer.play.loop_start_millisecond"
 #define MIX_PROP_PLAY_FADE_IN_FRAMES_NUMBER "SDL_mixer.play.fade_in_frames"
 #define MIX_PROP_PLAY_FADE_IN_MILLISECONDS_NUMBER "SDL_mixer.play.fade_in_milliseconds"
+#define MIX_PROP_PLAY_FADE_IN_START_GAIN_FLOAT "SDL_mixer.play.fade_in_start_gain"
 #define MIX_PROP_PLAY_APPEND_SILENCE_FRAMES_NUMBER "SDL_mixer.play.append_silence_frames"
 #define MIX_PROP_PLAY_APPEND_SILENCE_MILLISECONDS_NUMBER "SDL_mixer.play.append_silence_milliseconds"
 
@@ -2107,15 +2162,15 @@ extern SDL_DECLSPEC bool SDLCALL MIX_TrackPaused(MIX_Track *track);
  *
  * \since This function is available since SDL_mixer 3.0.0.
  *
- * \sa MIX_GetMasterGain
+ * \sa MIX_GetMixerGain
  * \sa MIX_SetTrackGain
  */
-extern SDL_DECLSPEC bool SDLCALL MIX_SetMasterGain(MIX_Mixer *mixer, float gain);
+extern SDL_DECLSPEC bool SDLCALL MIX_SetMixerGain(MIX_Mixer *mixer, float gain);
 
 /**
  * Get a mixer's master gain control.
  *
- * This returns the last value set through MIX_SetMasterGain(), or 1.0f if no
+ * This returns the last value set through MIX_SetMixerGain(), or 1.0f if no
  * value has ever been explicitly set.
  *
  * \param mixer the mixer to query.
@@ -2125,10 +2180,10 @@ extern SDL_DECLSPEC bool SDLCALL MIX_SetMasterGain(MIX_Mixer *mixer, float gain)
  *
  * \since This function is available since SDL_mixer 3.0.0.
  *
- * \sa MIX_SetMasterGain
+ * \sa MIX_SetMixerGain
  * \sa MIX_GetTrackGain
  */
-extern SDL_DECLSPEC float SDLCALL MIX_GetMasterGain(MIX_Mixer *mixer);
+extern SDL_DECLSPEC float SDLCALL MIX_GetMixerGain(MIX_Mixer *mixer);
 
 /**
  * Set a track's gain control.
@@ -2154,7 +2209,7 @@ extern SDL_DECLSPEC float SDLCALL MIX_GetMasterGain(MIX_Mixer *mixer);
  * \since This function is available since SDL_mixer 3.0.0.
  *
  * \sa MIX_GetTrackGain
- * \sa MIX_SetMasterGain
+ * \sa MIX_SetMixerGain
  */
 extern SDL_DECLSPEC bool SDLCALL MIX_SetTrackGain(MIX_Track *track, float gain);
 
@@ -2172,7 +2227,7 @@ extern SDL_DECLSPEC bool SDLCALL MIX_SetTrackGain(MIX_Track *track, float gain);
  * \since This function is available since SDL_mixer 3.0.0.
  *
  * \sa MIX_SetTrackGain
- * \sa MIX_GetMasterGain
+ * \sa MIX_GetMixerGain
  */
 extern SDL_DECLSPEC float SDLCALL MIX_GetTrackGain(MIX_Track *track);
 
@@ -2208,13 +2263,63 @@ extern SDL_DECLSPEC float SDLCALL MIX_GetTrackGain(MIX_Track *track);
  *
  * \sa MIX_GetTrackGain
  * \sa MIX_SetTrackGain
- * \sa MIX_SetMasterGain
+ * \sa MIX_SetMixerGain
  * \sa MIX_TagTrack
  */
 extern SDL_DECLSPEC bool SDLCALL MIX_SetTagGain(MIX_Mixer *mixer, const char *tag, float gain);
 
 
 /* frequency ratio ... */
+
+/**
+ * Set a mixer's master frequency ratio.
+ *
+ * Each mixer has a master frequency ratio, that affects the entire mix. This
+ * can cause the final output to change speed and pitch. A value greater than
+ * 1.0f will play the audio faster, and at a higher pitch. A value less than
+ * 1.0f will play the audio slower, and at a lower pitch. 1.0f is normal
+ * speed.
+ *
+ * Each track _also_ has a frequency ratio; it will be applied when mixing
+ * that track's audio regardless of the master setting. The master setting
+ * affects the final output after all mixing has been completed.
+ *
+ * A mixer's master frequency ratio defaults to 1.0f.
+ *
+ * This value can be changed at any time to adjust the future mix.
+ *
+ * \param mixer the mixer to adjust.
+ * \param ratio the frequency ratio. Must be between 0.01f and 100.0f.
+ * \returns true on success or false on failure; call SDL_GetError() for more
+ *          information.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL_mixer 3.0.0.
+ *
+ * \sa MIX_GetMixerFrequencyRatio
+ * \sa MIX_SetTrackFrequencyRatio
+ */
+extern SDL_DECLSPEC bool SDLCALL MIX_SetMixerFrequencyRatio(MIX_Mixer *mixer, float ratio);
+
+/**
+ * Get a mixer's master frequency ratio.
+ *
+ * This returns the last value set through MIX_SetMixerFrequencyRatio(), or
+ * 1.0f if no value has ever been explicitly set.
+ *
+ * \param mixer the mixer to query.
+ * \returns the mixer's current master frequency ratio.
+ *
+ * \threadsafety It is safe to call this function from any thread.
+ *
+ * \since This function is available since SDL_mixer 3.0.0.
+ *
+ * \sa MIX_SetMixerFrequencyRatio
+ * \sa MIX_GetTrackFrequencyRatio
+ */
+extern SDL_DECLSPEC float SDLCALL MIX_GetMixerFrequencyRatio(MIX_Mixer *mixer);
+
 
 /**
  * Change the frequency ratio of a track.

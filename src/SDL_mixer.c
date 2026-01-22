@@ -1,6 +1,6 @@
 /*
   SDL_mixer:  An audio mixer library based on the SDL library
-  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -22,8 +22,6 @@
 // !!! FIXME: figure out `int` vs Sint64/Uint64 metrics in all of this.
 
 #include "SDL_mixer_internal.h"
-
-SDL_COMPILE_TIME_ASSERT(SDL_version, SDL_VERSION_ATLEAST(3, 3, 3));
 
 // !!! FIXME: should RAW go first (only needs to check if it was explicitly
 // !!! FIXME: requested), and SINEWAVE last (must be requested, likely rare).
@@ -255,12 +253,15 @@ static void ApplyFade(MIX_Track *track, int channels, float *pcm, int frames)
     int fade_frame_position = total_fade_frames - (int) track->fade_frames;
 
     // some hacks to avoid a branch on each sample frame. Might not be a good idea in practice.
-    const float pctmult = (track->fade_direction < 0) ? 1.0f : -1.0f;
+    const float fade_start_gain = track->fade_start_gain;
+    const float pctmult = (1.0f - fade_start_gain) * ((track->fade_direction < 0) ? 1.0f : -1.0f);
     const float pctsub = (track->fade_direction < 0) ? 1.0f : 0.0f;
     const float ftotal_fade_frames = (float) total_fade_frames;
 
+    SDL_assert((fade_start_gain == 0.0f) || (track->fade_direction > 0));  // we only allow fade _in_ from arbitrary levels. Fade out always operates on the full signal down to zero.
+
     for (int i = 0; i < to_be_faded; i++) {
-        const float pct = (pctsub - (((float) fade_frame_position) / ftotal_fade_frames)) * pctmult;
+        const float pct = ((pctsub - (((float) fade_frame_position) / ftotal_fade_frames)) * pctmult) + fade_start_gain;
         SDL_assert(pct >= 0.0f);
         SDL_assert(pct <= 1.0f);
         fade_frame_position++;
@@ -347,7 +348,7 @@ static void SDLCALL TrackGetCallback(void *userdata, SDL_AudioStream *stream, in
     }
 
     // do we need to grow our buffer?
-    if (additional_amount > track->input_buffer_len) {
+    if ((unsigned)additional_amount > track->input_buffer_len) {
         void *ptr = SDL_realloc(track->input_buffer, additional_amount);
         if (!ptr) {   // uhoh.
             TrackStopped(track);
@@ -543,7 +544,7 @@ static void SDLCALL MixerCallback(void *userdata, SDL_AudioStream *stream, int a
     const bool skip_group_mixing = !mixer->all_groups || !mixer->all_groups->next;
     const int alloc_multiplier = skip_group_mixing ? 2 : 3;
     const int alloc_size = additional_amount * alloc_multiplier;
-    if (alloc_size > mixer->mix_buffer_allocation) {
+    if ((unsigned)alloc_size > mixer->mix_buffer_allocation) {
         void *ptr = SDL_realloc(mixer->mix_buffer, alloc_size);
         if (!ptr) {   // uhoh.
             return;  // not much to be done, we're out of memory!
@@ -1248,7 +1249,7 @@ MIX_Audio *MIX_LoadRawAudioNoCopy(MIX_Mixer *mixer, const void *data, size_t dat
     return audio;
 }
 
-MIX_Audio *MIX_CreateSineWaveAudio(MIX_Mixer *mixer, int hz, float amplitude)
+MIX_Audio *MIX_CreateSineWaveAudio(MIX_Mixer *mixer, int hz, float amplitude, Sint64 ms)
 {
     if (!CheckInitialized()) {
         return NULL;
@@ -1269,6 +1270,7 @@ MIX_Audio *MIX_CreateSineWaveAudio(MIX_Mixer *mixer, int hz, float amplitude)
     SDL_SetStringProperty(props, MIX_PROP_AUDIO_DECODER_STRING, "SINEWAVE");
     SDL_SetNumberProperty(props, MIX_PROP_DECODER_SINEWAVE_HZ_NUMBER, hz);
     SDL_SetFloatProperty(props, MIX_PROP_DECODER_SINEWAVE_AMPLITUDE_FLOAT, amplitude);
+    SDL_SetNumberProperty(props, MIX_PROP_DECODER_SINEWAVE_MS_NUMBER, ms);
     SDL_SetBooleanProperty(props, MIX_PROP_AUDIO_LOAD_ONDEMAND_BOOLEAN, true);
     MIX_Audio *audio = MIX_LoadAudioWithProperties(props);
     SDL_DestroyProperties(props);
@@ -1821,20 +1823,133 @@ bool MIX_TagTrack(MIX_Track *track, const char *tag)
 
 void MIX_UntagTrack(MIX_Track *track, const char *tag)
 {
-    if (!CheckTrackTagParam(track, tag)) {
+    if (!CheckTrackParam(track)) {
         return;  // do nothing.
     }
 
     const SDL_PropertiesID tags = track->tags;
-
-    SDL_LockProperties(tags);
-    if (SDL_GetBooleanProperty(tags, tag, false)) {  // if tag isn't there, nothing to do.
-        SDL_assert(SDL_GetPointerProperty(track->mixer->track_tags, tag, NULL) != NULL);  // shouldn't be NULL, there's definitely a track with this tag!
-        RemoveTrackFromMixerTagList(track->mixer, track, tag);
-        SDL_SetBooleanProperty(tags, tag, false);
+    if (!tag) {  // untag everything on the track.
+        SDL_EnumerateProperties(tags, RemoveTrackFromAllMixerTagLists, track);
+        const SDL_PropertiesID new_tags = SDL_CreateProperties();
+        LockTrack(track);
+        track->tags = new_tags;
+        UnlockTrack(track);
+        SDL_DestroyProperties(tags);  // just nuke all the tags and start over.
+    } else {
+        SDL_LockProperties(tags);
+        if (SDL_GetBooleanProperty(tags, tag, false)) {  // if tag isn't there, nothing to do.
+            SDL_assert(SDL_GetPointerProperty(track->mixer->track_tags, tag, NULL) != NULL);  // shouldn't be NULL, there's definitely a track with this tag!
+            RemoveTrackFromMixerTagList(track->mixer, track, tag);
+            SDL_SetBooleanProperty(tags, tag, false);
+        }
+        SDL_UnlockProperties(tags);
     }
-    SDL_UnlockProperties(tags);
 }
+
+typedef struct GetTrackTagsCallbackData
+{
+    const char *struct_tags[4];  // hopefully mostly fits in here, no allocations.
+    const char **allocated_tags;
+    int count;
+    bool failed;
+} GetTrackTagsCallbackData;
+
+static void SDLCALL GetTrackTagsCallback(void *userdata, SDL_PropertiesID props, const char *tag)
+{
+    // just store the tag to the array; since we have the properties locked, we can copy it after enumeration is done.
+    GetTrackTagsCallbackData *data = (GetTrackTagsCallbackData *) userdata;
+    if (data->failed) {
+        return;  // just get out if we previously failed.
+    } else if (SDL_GetBooleanProperty(props, tag, false)) {   // if false, tag _was_ here, but has since been untagged. Skip it.
+        if (data->count < (int)SDL_arraysize(data->struct_tags)) {
+            data->struct_tags[data->count++] = tag;
+        } else {
+            void *ptr = SDL_realloc(data->allocated_tags, sizeof (char *) * (data->count - SDL_arraysize(data->struct_tags) + 1));
+            if (!ptr) {
+                data->failed = true;
+            } else {
+                data->allocated_tags = (const char **) ptr;
+                data->allocated_tags[data->count - SDL_arraysize(data->struct_tags)] = tag;
+                data->count++;
+            }
+        }
+    }
+}
+
+char **MIX_GetTrackTags(MIX_Track *track, int *count)
+{
+    char **retval = NULL;
+    int dummycount;
+    if (!count) {
+        count = &dummycount;
+    }
+    *count = 0;
+
+    if (!CheckTrackParam(track)) {
+        return NULL;
+    }
+
+    GetTrackTagsCallbackData data;
+    SDL_zero(data);
+    SDL_LockProperties(track->tags);
+    SDL_EnumerateProperties(track->tags, GetTrackTagsCallback, &data);
+    if (!data.failed) {
+        size_t allocation = sizeof (char *);  // one extra pointer for the list's NULL terminator.
+        for (int i = 0; i < data.count; i++) {
+            const char *str = (i < (int)SDL_arraysize(data.struct_tags)) ? data.struct_tags[i] : data.allocated_tags[i - SDL_arraysize(data.struct_tags)];
+            allocation += sizeof (char *) + SDL_strlen(str) + 1;
+        }
+        retval = (char **) SDL_malloc(allocation);
+        if (retval) {
+            char *strptr = ((char *) retval) + (sizeof (char *) * (data.count + 1));
+            for (int i = 0; i < data.count; i++) {
+                const char *str = (i < (int)SDL_arraysize(data.struct_tags)) ? data.struct_tags[i] : data.allocated_tags[i - SDL_arraysize(data.struct_tags)];
+                const size_t slen = SDL_strlen(str) + 1;
+                SDL_memcpy(strptr, str, slen);
+                retval[i] = strptr;
+                strptr += slen;
+            }
+            retval[data.count] = NULL;
+            *count = data.count;
+        }
+        SDL_free(data.allocated_tags);
+    }
+    SDL_UnlockProperties(track->tags);
+
+    return retval;
+}
+
+MIX_Track **MIX_GetTaggedTracks(MIX_Mixer *mixer, const char *tag, int *count)
+{
+    int dummycount;
+    if (!count) {
+        count = &dummycount;
+    }
+    *count = 0;
+
+    if (!CheckMixerTagParam(mixer, tag)) {
+        return NULL;
+    }
+
+    MIX_TagList *list = (MIX_TagList *) SDL_GetPointerProperty(mixer->track_tags, tag, NULL);
+    if (!list) {  // nothing is using this tag?
+        return (MIX_Track **) SDL_calloc(1, sizeof (MIX_Track *));  // just a single NULL entry (or a NULL return if out of memory, works either way).
+    }
+
+    MIX_Track **retval = NULL;
+    SDL_LockRWLockForReading(list->rwlock);
+    const size_t total = list->num_tracks;
+    retval = (MIX_Track **) SDL_malloc(sizeof (*retval) * (total + 1));
+    if (retval) {
+        SDL_memcpy(retval, list->tracks, sizeof (*retval) * total);
+        retval[total] = NULL;
+        *count = (int) total;
+    }
+    SDL_UnlockRWLock(list->rwlock);
+
+    return retval;
+}
+
 
 bool MIX_SetTrackPlaybackPosition(MIX_Track *track, Sint64 frames)
 {
@@ -1908,12 +2023,14 @@ Sint64 MIX_GetTrackFadeFrames(MIX_Track *track)
     return retval;
 }
 
-bool MIX_TrackLooping(MIX_Track *track)
+int MIX_GetTrackLoops(MIX_Track *track)
 {
-    bool retval = false;
+    int retval = 0;
     if (CheckTrackParam(track)) {
         LockTrack(track);
-        retval = ((track->state != MIX_STATE_STOPPED) && (track->loops_remaining != 0));
+        if (track->state != MIX_STATE_STOPPED) {
+            retval = track->loops_remaining;
+        }
         UnlockTrack(track);
     }
     return retval;
@@ -2063,6 +2180,7 @@ bool MIX_PlayTrack(MIX_Track *track, SDL_PropertiesID options)
     Sint64 loop_start = 0;
     Sint64 fade_in = 0;
     Sint64 append_silence_frames = 0;
+    float fade_start_gain = 0.0f;
     LockTrack(track);
     if (options) {
         loops = (int) SDL_GetNumberProperty(options, MIX_PROP_PLAY_LOOPS_NUMBER, loops);
@@ -2070,19 +2188,22 @@ bool MIX_PlayTrack(MIX_Track *track, SDL_PropertiesID options)
         start_pos = GetTrackOptionFramesOrTicks(track, options, MIX_PROP_PLAY_START_FRAME_NUMBER, MIX_PROP_PLAY_START_MILLISECOND_NUMBER, start_pos);
         loop_start = GetTrackOptionFramesOrTicks(track, options, MIX_PROP_PLAY_LOOP_START_FRAME_NUMBER, MIX_PROP_PLAY_LOOP_START_MILLISECOND_NUMBER, loop_start);
         fade_in = GetTrackOptionFramesOrTicks(track, options, MIX_PROP_PLAY_FADE_IN_FRAMES_NUMBER, MIX_PROP_PLAY_FADE_IN_MILLISECONDS_NUMBER, fade_in);
+        fade_start_gain = SDL_GetFloatProperty(options, MIX_PROP_PLAY_FADE_IN_START_GAIN_FLOAT, 0.0f);
         append_silence_frames = GetTrackOptionFramesOrTicks(track, options, MIX_PROP_PLAY_APPEND_SILENCE_FRAMES_NUMBER, MIX_PROP_PLAY_APPEND_SILENCE_MILLISECONDS_NUMBER, append_silence_frames);
-    }
 
-    if (start_pos < 0) {
-        start_pos = 0;
-    }
+        if (start_pos < 0) {
+            start_pos = 0;
+        }
 
-    if (loop_start < 0) {
-        loop_start = 0;
-    }
+        if (loop_start < 0) {
+            loop_start = 0;
+        }
 
-    if (append_silence_frames < 0) {
-        append_silence_frames = 0;
+        if (append_silence_frames < 0) {
+            append_silence_frames = 0;
+        }
+
+        fade_start_gain = SDL_clamp(fade_start_gain, 0.0f, 1.0f);
     }
 
     if (track->input_audio && (!track->input_audio->decoder->seek(track->decoder_userdata, start_pos))) {
@@ -2099,6 +2220,7 @@ bool MIX_PlayTrack(MIX_Track *track, SDL_PropertiesID options)
     track->total_fade_frames = (fade_in > 0) ? fade_in : 0;
     track->fade_frames = track->total_fade_frames;
     track->fade_direction = (fade_in > 0) ? 1 : 0;
+    track->fade_start_gain = fade_start_gain;
     track->silence_frames = (append_silence_frames > 0) ? -append_silence_frames : 0;  // negative means "there is still actual audio data to play", positive means "we're done with actual data, feed silence now." Zero means no silence (left) to feed.
     track->state = MIX_STATE_PLAYING;
     track->position = start_pos;
@@ -2189,6 +2311,7 @@ static void StopTrack(MIX_Track *track, Sint64 fadeOut)
             track->total_fade_frames = fadeOut;
             track->fade_frames = fadeOut;
             track->fade_direction = -1;
+            track->fade_start_gain = 0.0f;  // only used for fade-ins.
         }
     }
     UnlockTrack(track);
@@ -2408,7 +2531,7 @@ bool MIX_SetTrackStoppedCallback(MIX_Track *track, MIX_TrackStoppedCallback cb, 
     return true;
 }
 
-bool MIX_SetMasterGain(MIX_Mixer *mixer, float gain)
+bool MIX_SetMixerGain(MIX_Mixer *mixer, float gain)
 {
     if (!CheckMixerParam(mixer)) {
         return false;
@@ -2422,7 +2545,7 @@ bool MIX_SetMasterGain(MIX_Mixer *mixer, float gain)
     return true;
 }
 
-float MIX_GetMasterGain(MIX_Mixer *mixer)
+float MIX_GetMixerGain(MIX_Mixer *mixer)
 {
     if (!CheckMixerParam(mixer)) {
         return 1.0f;
@@ -2499,12 +2622,29 @@ bool MIX_SetTagGain(MIX_Mixer *mixer, const char *tag, float gain)
     return true;
 }
 
-static bool SetTrackFrequencyRatio(MIX_Track *track, float ratio)
+bool MIX_SetMixerFrequencyRatio(MIX_Mixer *mixer, float ratio)
 {
-    // don't have to LockTrack, as SDL_SetAudioStreamFrequencyRatio will do that.
+    if (!CheckMixerParam(mixer)) {
+        return false;
+    }
+
+    ratio = SDL_clamp(ratio, 0.01f, 100.0f);   // !!! FIXME: this clamps, but should it fail instead?
+
+    // don't have to LockMixer, as SDL_SetAudioStreamFrequencyRatio will do that.
+    return SDL_SetAudioStreamFrequencyRatio(mixer->output_stream, ratio);
+}
+
+float MIX_GetMixerFrequencyRatio(MIX_Mixer *mixer)
+{
+    if (!CheckMixerParam(mixer)) {
+        return 0.0f;
+    }
+
+    // don't have to LockMixer, as SDL_GetAudioStreamFrequencyRatio will do that.
     //LockTrack(track);
-    const bool retval = SDL_SetAudioStreamFrequencyRatio(track->output_stream, ratio);
+    const float retval = SDL_GetAudioStreamFrequencyRatio(mixer->output_stream);
     //UnlockTrack(track);
+
     return retval;
 }
 
@@ -2516,7 +2656,8 @@ bool MIX_SetTrackFrequencyRatio(MIX_Track *track, float ratio)
 
     ratio = SDL_clamp(ratio, 0.01f, 100.0f);   // !!! FIXME: this clamps, but should it fail instead?
 
-    return SetTrackFrequencyRatio(track, ratio);
+    // don't have to LockTrack, as SDL_SetAudioStreamFrequencyRatio will do that.
+    return SDL_SetAudioStreamFrequencyRatio(track->output_stream, ratio);
 }
 
 float MIX_GetTrackFrequencyRatio(MIX_Track *track)

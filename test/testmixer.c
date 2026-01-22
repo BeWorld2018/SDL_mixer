@@ -4,6 +4,7 @@
 #include "SDL3_mixer/SDL_mixer.h"
 
 #define USE_MIX_GENERATE 0
+#define TEST_TAGS 0
 
 //static SDL_Window *window = NULL;
 //static SDL_Renderer *renderer = NULL;
@@ -88,6 +89,26 @@ static int SDLCALL CompareMetadataKeys(const void *a, const void *b)
     return SDL_strcmp(*(const char **) a, *(const char **) b);
 }
 
+#if TEST_TAGS
+static void showtags(MIX_Track *track, const char *when)
+{
+    int count;
+    char **tags = MIX_GetTrackTags(track, &count);
+    if (!tags) {
+        SDL_Log("GETTRACKTAGS FAILED!  %s", SDL_GetError());
+        return;
+    }
+
+    SDL_Log("Track tags %s (%d):", when, count);
+    for (int i = 0; i < count; i++) {
+        SDL_Log(" - %s", tags[i]);
+    }
+
+    SDL_assert(tags[count] == NULL);
+    SDL_free(tags);
+}
+#endif
+
 SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
 {
     SDL_SetAppMetadata("Test SDL_mixer", "1.0", "org.libsdl.testmixer");
@@ -138,6 +159,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
 
     const char *audiofname = argv[1];
     MIX_Audio *audio = MIX_LoadAudio(mixer, audiofname, false);
+    //MIX_Audio *audio = MIX_CreateSineWaveAudio(mixer, 300, 0.25f, 5000);
     if (!audio) {
         SDL_Log("Failed to load '%s': %s", audiofname, SDL_GetError());
         return SDL_APP_FAILURE;
@@ -186,11 +208,33 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
 
     SDL_PropertiesID options;
 
+    #if TEST_TAGS
+    MIX_TagTrack(track1, "Abc");
+    MIX_TagTrack(track1, "xyZ");
+    MIX_TagTrack(track1, "1234567890");
+    MIX_TagTrack(track1, "TopSecret");
+    MIX_TagTrack(track1, "MyFavoriteTrack");
+    MIX_TagTrack(track1, "Can I put spaces and punctuation in here?");
+    MIX_TagTrack(track1, "Music");
+    MIX_TagTrack(track1, "NotImportant");
+    MIX_TagTrack(track1, "Orange");
+    int tagged_count = 77;
+    MIX_Track **tagged = MIX_GetTaggedTracks(mixer, "TopSecret", &tagged_count);
+    SDL_Log("MIX_GetTaggedTracks is %sworking", (tagged && (tagged_count == 1) && (tagged[0] == track1) && (tagged[1] == NULL)) ? "" : "NOT ");
+    SDL_free(tagged);
+    showtags(track1, "at startup");
+    MIX_UntagTrack(track1, "TopSecret");
+    showtags(track1, "after removing 'TopSecret'");
+    MIX_UntagTrack(track1, NULL);
+    showtags(track1, "after removing everything");
+    #endif
+
     options = SDL_CreateProperties();
     SDL_SetNumberProperty(options, MIX_PROP_PLAY_MAX_MILLISECONDS_NUMBER, 9440);
     SDL_SetNumberProperty(options, MIX_PROP_PLAY_LOOPS_NUMBER, 3);
     SDL_SetNumberProperty(options, MIX_PROP_PLAY_LOOP_START_MILLISECOND_NUMBER, 6097);
     SDL_SetNumberProperty(options, MIX_PROP_PLAY_FADE_IN_MILLISECONDS_NUMBER, 30000);
+    //SDL_SetFloatProperty(options, MIX_PROP_PLAY_FADE_IN_START_GAIN_FLOAT, 0.25f);
     SDL_SetNumberProperty(options, MIX_PROP_PLAY_APPEND_SILENCE_MILLISECONDS_NUMBER, 30000);
     MIX_PlayTrack(track1, options);
     SDL_DestroyProperties(options);
@@ -203,7 +247,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
     }
 
     // we cheat here with PlayAudio, since the sinewave decoder produces infinite audio.
-    //MIX_PlayAudio(mixer, MIX_CreateSineWaveAudio(mixer, 300, 0.25f));
+    //MIX_PlayAudio(mixer, MIX_CreateSineWaveAudio(mixer, 300, 0.25f, -1));
 
     return SDL_APP_CONTINUE;
 }

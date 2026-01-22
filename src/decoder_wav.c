@@ -1,6 +1,6 @@
 /*
   SDL_mixer:  An audio mixer library based on the SDL library
-  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -1143,7 +1143,7 @@ static bool BuildSeekBlocks(WAV_AudioData *adata)
         current_frame += seekblocks->num_frames;
         seekblocks++;
 
-        for (int i = 0; i < numloops; i++) {
+        for (unsigned int i = 0; i < numloops; i++) {
             // space covered by a loop...
             const WAVLoopPoint *loop = &adata->loops[i];
             seekblocks->frame_start = current_frame;
@@ -1247,7 +1247,7 @@ static bool WAV_init_audio_internal(WAV_AudioData *adata, SDL_IOStream *io, SDL_
 
         if (chunk_length == 0) {
             break;
-        } else if (((chunk_start_position + chunk_length) - (sizeof (Uint32) * 2)) > flen) {
+        } else if (((chunk_start_position + (Sint64)chunk_length) - (Sint64)(sizeof(Uint32) * 2)) > flen) {
             return SDL_SetError("Corrupt WAV file (chunk goes past EOF)");
         }
 
@@ -1442,7 +1442,7 @@ static bool SDLCALL WAV_decode(void *track_userdata, SDL_AudioStream *stream)
         } else {
             //SDL_Log("That was the last iteration, moving to next seekblock!");
             seekblock++;
-            if ((seekblock - tdata->adata->seekblocks) >= tdata->adata->num_seekblocks) {  // ran out of blocks! EOF!!
+            if ((seekblock - tdata->adata->seekblocks) >= (Sint64)tdata->adata->num_seekblocks) {  // ran out of blocks! EOF!!
                 //SDL_Log("That was the last seekblock, too!");
                 tdata->current_iteration--;
                 return false;
@@ -1464,7 +1464,7 @@ static bool SDLCALL WAV_decode(void *track_userdata, SDL_AudioStream *stream)
         buflen -= mod;
     }
 
-    buflen = SDL_min(buflen, available_bytes);
+    buflen = SDL_min(buflen, (Sint64)available_bytes);
     SDL_assert(buflen > 0);  // we should have caught this in the seekblock code.
 
     const int br = tdata->adata->fetch(tdata, buffer, buflen);  // this will deal with different formats that might need decompression or conversion.
@@ -1487,7 +1487,7 @@ static bool FindWAVSeekBlock(const WAVSeekBlock *seekblocks, int num_seekblocks,
     SDL_assert(result != NULL);
 
     const Sint64 frame = (Sint64) ui64frame;
-    for (unsigned int i = 0; i < num_seekblocks; i++) {
+    for (int i = 0; i < num_seekblocks; i++) {
         const WAVSeekBlock *seekblock = &seekblocks[i];
         const Sint64 frame_start = seekblock->frame_start;
         const Sint64 num_frames = seekblock->num_frames;
@@ -1523,7 +1523,7 @@ static bool SDLCALL WAV_seek(void *track_userdata, Uint64 frame)
     const Uint64 current_iteration = (seekblock->iterations < 0) ? 0 : (frame / seekblock->num_frames);
     const Uint64 current_iteration_frames = (frame % seekblock->num_frames);
 
-    SDL_assert((seekblock->iterations < 0) || (current_iteration < seekblock->iterations));
+    SDL_assert((seekblock->iterations < 0) || (current_iteration < (Uint64) seekblock->iterations));
 
     // Deal with loop iterations, offset by the modulus of total frames in the loop; frame_start should have already
     //  dealt with iterations, so this shouldn't matter how many iterations there are or if it's an infinite loop.
@@ -1544,7 +1544,7 @@ static bool SDLCALL WAV_seek(void *track_userdata, Uint64 frame)
         int remainder = ((int)(frame % adata->adpcm_info.samplesperblock)) * adata->decoded_framesize;
         while (remainder > 0) {
             Uint8 buffer[1024];
-            const int br = adata->fetch(tdata, buffer, SDL_min(remainder, sizeof (buffer)));
+            const int br = adata->fetch(tdata, buffer, SDL_min(remainder, (int)sizeof(buffer)));
             if (br <= 0) {
                 return false;
             }

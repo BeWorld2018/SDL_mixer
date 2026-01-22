@@ -1,6 +1,6 @@
 /*
   SDL_mixer:  An audio mixer library based on the SDL library
-  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -22,6 +22,15 @@
 #ifdef DECODER_MOD_XMP
 
 #include "SDL_mixer_internal.h"
+
+#if defined(XMP_DYNAMIC) && defined(SDL_ELF_NOTE_DLOPEN)
+SDL_ELF_NOTE_DLOPEN(
+    "midi-xmp",
+    "Support for MIDI audio using libxmp",
+    SDL_ELF_NOTE_DLOPEN_PRIORITY_SUGGESTED,
+    XMP_DYNAMIC
+)
+#endif
 
 #ifdef LIBXMP_HEADER
 #include LIBXMP_HEADER
