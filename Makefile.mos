@@ -1,62 +1,84 @@
-# Makefile to build the libSDL3_mixer.a
-# 
-# NEED SDL 3.3.0 minimum !
+# Makefile for building SDL3_mixer (MorphOS)
 #
-# build per default with DRMP3, DRFLAC, libxmp, libfluidsynth, libopus, libogg
+# Requirements:
+#   - SDL 3.4.0 or newer
 #
-# libSDL3_mixer.a concat all libraries dependencies or use libSDL3_mixer_light.a
+# Outputs:
+#   - libSDL3_mixer_light.a : SDL3_mixer built with the enabled decoders
+#   - libSDL3_mixer.a       : "fat" archive embedding enabled external libraries
+#                             (built via 'ar -M' to avoid object name collisions)
 #
+# Default build enables:
+#   - DRMP3 (MP3) and DRFLAC (FLAC)
+#   - libxmp (MOD)
+#   - FluidSynth (MIDI)
+#   - Opus + Ogg
+#   - Vorbisfile + Ogg
+#
+# Usage examples:
+#   make -f makefile.mos
+#   make -f makefile.mos DECODER_OPUS=0 DECODER_OGGVORBIS_VORBISFILE=0
+#
+# Install to SDK (/gg/usr/local):
+#   make -f makefile.mos install
 
-DECODER_AIFF 			= 1
-DECODER_AU				= 1
-DECODER_FLAC_DRFLAC 	= 1
-DECODER_MP3_DRMP3		= 1
-DECODER_FLAC			= 0
-DECODER_MIDI_FLUIDSYNTH	= 1
-DECODER_GME				= 0
-DECODER_MP3_MPG123		= 0
-DECODER_OPUS			= 1
-DECODER_OGGVORBIS_STB	= 0
-DECODER_MIDI_TIMIDITY	= 0
-DECODER_VOC				= 1
-DECODER_OGGVORBIS_VORBISFILE = 1
-DECODER_WAV				= 1
-DECODER_WAVPACK			= 0
-DECODER_MOD_XMP			= 1
 
-CC  = ppc-morphos-gcc-11 
-AR	= ppc-morphos-ar
-LD	= ppc-morphos-ld
+# Decoder feature switches (0/1). Use "make ... DECODER_X=0" to disable features.
+DECODER_AIFF 					?= 1
+DECODER_AU 						?= 1
+DECODER_FLAC_DRFLAC 			?= 1
+DECODER_MP3_DRMP3 				?= 1
+DECODER_FLAC 					?= 0
+DECODER_MIDI_FLUIDSYNTH 		?= 1
+DECODER_GME 					?= 0
+DECODER_MP3_MPG123 				?= 0
+DECODER_OPUS 					?= 1
+DECODER_OGGVORBIS_STB 			?= 0
+DECODER_MIDI_TIMIDITY 			?= 0
+DECODER_VOC 					?= 1
+DECODER_OGGVORBIS_VORBISFILE 	?= 1
+DECODER_WAV 					?= 1
+DECODER_WAVPACK 				?= 0
+DECODER_MOD_XMP 				?= 1
+
+CC     = ppc-morphos-gcc-11
+AR     = ppc-morphos-ar
+RANLIB = ppc-morphos-ranlib
+STRIP  = ppc-morphos-strip
 
 CDEFS   = -DHAVE_SNPRINTF -DHAVE_UNISTD_H -DHAVE_SETBUF -DHAVE_FORK -DMUSIC_WAV
 INCLUDE =  -I. -I./include -I./src/ -I./src/dr_libs -I./src/stb_vorbis -I/gg/usr/local/include/SDL3 -I/gg/usr/local/include -I/gg/usr/local/include/opus
 CFLAGS  =  -noixemul -O3 -mcpu=750 -mtune=7450 -Wno-pointer-sign -fno-strict-aliasing -Wall -ffast-math $(INCLUDE) 
 
-LIBS_EXT = -L/gg/usr/local/lib 
+LIBS_EXT = -L/gg/usr/local/lib
+LIBS_EXT_END = -lm
 LIBS_SDL3 = -L/gg/usr/local/lib -noixemul -lSDL3 -lc -lm -lpthread -lGL
 
 SOURCES = \
-	src/decoder_aiff.o \
-	src/decoder_au.o \
-	src/decoder_drflac.o \
-	src/decoder_drmp3.o \
-	src/decoder_flac.o \
-	src/decoder_fluidsynth.o \
-	src/decoder_gme.o \
-	src/decoder_mpg123.o \
-	src/decoder_opus.o \
-	src/decoder_raw.o \
-	src/decoder_sinewave.o \
-	src/decoder_stb_vorbis.o \
-	src/decoder_timidity.o \
-	src/decoder_voc.o \
-	src/decoder_vorbis.o \
-	src/decoder_wav.o \
-	src/decoder_wavpack.o \
-	src/decoder_xmp.o \
-	src/SDL_mixer.o \
-	src/SDL_mixer_metadata_tags.o \
-	src/SDL_mixer_spatialization.o
+	src/decoder_aiff.c \
+	src/decoder_au.c \
+	src/decoder_drflac.c \
+	src/decoder_drmp3.c \
+	src/decoder_flac.c \
+	src/decoder_fluidsynth.c \
+	src/decoder_gme.c \
+	src/decoder_mpg123.c \
+	src/decoder_opus.c \
+	src/decoder_raw.c \
+	src/decoder_sinewave.c \
+	src/decoder_stb_vorbis.c \
+	src/decoder_timidity.c \
+	src/decoder_voc.c \
+	src/decoder_vorbis.c \
+	src/decoder_wav.c \
+	src/decoder_wavpack.c \
+	src/decoder_xmp.c \
+	src/SDL_mixer.c \
+	src/SDL_mixer_metadata_tags.c \
+	src/SDL_mixer_spatialization.c
+
+# Avoid linking libogg multiple times when both Opus and Vorbisfile are enabled
+NEED_OGG = 0
 
 ifeq ($(DECODER_FLAC),1)
 LIBS_EXT 	+= -lFLAC
@@ -90,8 +112,9 @@ LIBS_EXT 	+= -lxmp
 CDEFS		+= -DDECODER_MOD_XMP
 endif
 ifeq ($(DECODER_OPUS),1)
-LIBS_EXT 	+= -lopusfile -lopus -logg -lm
+LIBS_EXT 	+= -lopusfile -lopus
 CDEFS		+= -DDECODER_OPUS
+NEED_OGG 	 = 1
 endif
 ifeq ($(DECODER_MIDI_TIMIDITY),1)
 CDEFS		+= -DDECODER_MIDI_TIMIDITY -I./src/timidity
@@ -103,11 +126,17 @@ ifeq ($(DECODER_OGGVORBIS_STB),1)
 CDEFS		+= -DDECODER_OGGVORBIS_STB
 endif
 ifeq ($(DECODER_OGGVORBIS_VORBISFILE),1)
-LIBS_EXT 	+= -lvorbisfile -lvorbis -logg
+LIBS_EXT 	+= -lvorbisfile -lvorbis
 CDEFS		+= -DDECODER_OGGVORBIS_VORBISFILE
+NEED_OGG 	 = 1
 endif
 
-LIBS_EXT +=  -lm 
+ifeq ($(NEED_OGG),1)
+LIBS_EXT += -logg
+endif
+
+LIBS_EXT += $(LIBS_EXT_END)
+
 CFLAGS += $(CDEFS)
 
 ECHE = echo -e
@@ -118,11 +147,47 @@ COMPILING = @$(ECHE) "compiling $(BOLD)$@$(NRML)..."
 LINKING = @$(ECHE) "linking $(BOLD)$@$(NRML)..."
 ARCHIVING = @$(ECHE) "archiving $(BOLD)$@$(NRML)..."
 
+# Build the "fat" archive by merging the light library plus enabled external libs
+# (the existence check provides a clean error message if a required .a is missing)
 TARGET  = libSDL3_mixer_light.a
 TARGETF = libSDL3_mixer.a
-OBJECTS = $(shell echo $(SOURCES) | sed -e 's,\.c,\.o,g')
 
-all: $(TARGET) $(TARGETF) playwave playmus
+# External libraries to merge into the full archive (conditional)
+MERGE_LIBS =
+
+ifeq ($(DECODER_MIDI_FLUIDSYNTH),1)
+MERGE_LIBS += /gg/usr/local/lib/libfluidsynth.a
+endif
+
+ifeq ($(DECODER_MOD_XMP),1)
+MERGE_LIBS += /gg/usr/local/lib/libxmp.a
+endif
+
+ifeq ($(DECODER_OPUS),1)
+MERGE_LIBS += \
+	/gg/usr/local/lib/libopusfile.a \
+	/gg/usr/local/lib/libopus.a \
+	/gg/usr/local/lib/libogg.a
+endif
+
+ifeq ($(DECODER_OGGVORBIS_VORBISFILE),1)
+MERGE_LIBS += \
+	/gg/usr/local/lib/libvorbisfile.a \
+	/gg/usr/local/lib/libvorbis.a \
+	/gg/usr/local/lib/libogg.a
+endif
+
+ifeq ($(DECODER_FLAC),1)
+MERGE_LIBS += /gg/usr/local/lib/libFLAC.a
+endif
+
+ifeq ($(DECODER_MP3_MPG123),1)
+MERGE_LIBS += /gg/usr/local/lib/libmpg123_shared.a
+endif
+
+OBJECTS = $(SOURCES:.c=.o)
+
+all: $(TARGET) $(TARGETF) testaudiodecoder testmixer testspatialization
 
 install: all
 	cp -r include/SDL3_mixer /gg/usr/local/include/
@@ -133,57 +198,36 @@ $(TARGET): $(OBJECTS)
 	$(ARCHIVING)
 	$(AR) crvs $@ $^
 
-# build a new SDL3_mixer (full) with all external lib include
-#
-# cd .. && \
-# mkdir -p vorbis-obj && \
-# cd vorbis-obj && \
-# $(AR) x /gg/usr/local/lib/libvorbisfile.a && \
-# $(AR) x /gg/usr/local/lib/libvorbis.a && \	
-# 	cd .. && \
-# 	mkdir -p flac-obj && \
-# 	cd flac-obj && \
-# 	$(AR) x /gg/usr/local/lib/libFLAC.a && \
-#	cd .. && \
-#	mkdir -p mpg123-obj && \
-#	cd mpg123-obj && \
-#	$(AR) x /gg/usr/local/lib/libmpg123_shared.a && \
-#	cd .. && \
+$(TARGETF): $(TARGET)
+	@for L in $(MERGE_LIBS); do test -f $$L || { echo "Missing library: $$L"; exit 1; }; done
+	@rm -f $@ merge.mri
+	@echo "CREATE $@" > merge.mri
+	@echo "ADDLIB $(TARGET)" >> merge.mri
+	@for L in $(MERGE_LIBS); do echo "ADDLIB $$L" >> merge.mri; done
+	@echo "SAVE" >> merge.mri
+	@echo "END" >> merge.mri
+	$(AR) -M < merge.mri
+	$(RANLIB) $@
+	@rm -f merge.mri
 
-# mpg123-obj/*.o vorbis-obj/*.o flac-obj/*.o
-	
-$(TARGETF):
-	mkdir -p external-obj && \
-	cd external-obj && \
-	mkdir -p fluidsynth-obj && \
-	cd fluidsynth-obj && \
-	$(AR) x /gg/usr/local/lib/libfluidsynth.a && \
-	cd .. && \
-	mkdir -p xmp-obj && \
-	cd xmp-obj && \
-	$(AR) x /gg/usr/local/lib/libxmp.a && \
-	cd .. && \
-	mkdir -p ogg-obj && \
-	cd ogg-obj && \
-	$(AR) x /gg/usr/local/lib/libogg.a && \
-	cd .. && \
-	mkdir -p opus-obj && \
-	cd opus-obj && \
-	$(AR) x /gg/usr/local/lib/libopus.a && \
-	$(AR) x /gg/usr/local/lib/libopusfile.a && \
-	cd .. && \
-	$(AR) x ../libSDL3_mixer_light.a && \
-	$(AR) rcs ../libSDL3_mixer.a *.o fluidsynth-obj/*.o  xmp-obj/*.o  ogg-obj/*.o opus-obj/*.o && \
-	rm -rf *.o ../external-obj
+# Example programs (stripped to reduce size)
+define LINK_TEST
+	$(CC) -O3 -Wall -noixemul -DHAVE_SIGNAL_H $< -o $@ $(INCLUDE) -L. -lSDL3_mixer -lstdc++ $(LIBS_SDL3)
+	$(STRIP) --strip-unneeded $@
+endef
 
-playwave: examples/playwave.c
-	$(CC) -O3 -Wall -noixemul -DHAVE_SIGNAL_H examples/playwave.c -o $@ $(INCLUDE) -L. -lSDL3_mixer -lstdc++ $(LIBS_SDL3) 
+# Test programs (upstream SDL_mixer tests)
+testaudiodecoder: test/testaudiodecoder.c
+	$(LINK_TEST)
 
-playmus: examples/playmus.c
-	$(CC) -O3 -Wall -noixemul -DHAVE_SIGNAL_H examples/playmus.c -o $@ $(INCLUDE) -L. -lSDL3_mixer -lstdc++ $(LIBS_SDL3)
+testmixer: test/testmixer.c
+	$(LINK_TEST)
+
+testspatialization: test/testspatialization.c
+	$(LINK_TEST)
 
 clean:
-	rm -f $(TARGET) $(TARGETF) $(OBJECTS) *.db *.s playwave playmus
+	rm -f $(TARGET) $(TARGETF) $(OBJECTS) *.db *.s testaudiodecoder testmixer testspatialization
 	
 dump:
 	ppc-morphos-objdump --disassemble-all --reloc playmus >playmus.s
