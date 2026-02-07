@@ -4,8 +4,8 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
 # See docs/release_checklist.md
 set(MAJOR_VERSION 2)
-set(MINOR_VERSION 8)
-set(MICRO_VERSION 1)
+set(MINOR_VERSION 9)
+set(MICRO_VERSION 0)
 set(SDL_REQUIRED_VERSION 2.0.9)
 
 include(PrivateSdlFunctions)
@@ -233,6 +233,7 @@ add_library(SDL2_mixer
     src/codecs/music_wav.c
     src/codecs/music_wavpack.c
     src/codecs/music_xmp.c
+    src/codecs/remap_channels.c
     src/effect_position.c
     src/effect_stereoreverse.c
     src/effects_internal.c
@@ -472,7 +473,7 @@ if(SDL2MIXER_VORBIS_TREMOR)
         message(STATUS "Using system tremor")
         find_package(tremor REQUIRED)
         if(NOT SDL2MIXER_VORBIS_TREMOR_SHARED)
-            list(APPEND PC_REQUIRES tremor)
+            list(APPEND PC_REQUIRES vorbisidec)
         endif()
     endif()
     if(SDL2MIXER_VORBIS_TREMOR_SHARED)
@@ -591,16 +592,24 @@ endif()
 if(SDL2MIXER_GME)
     target_compile_definitions(SDL2_mixer PRIVATE MUSIC_GME)
     if(SDL2MIXER_VENDORED)
-        set(BUILD_SHARED_LIBS "${SDL2MIXER_GME_SHARED}")
-        set(ENABLE_UBSAN OFF)
-        set(BUILD_FRAMEWORK OFF)
+        set(GME_BUILD_SHARED "${SDL2MIXER_GME_SHARED}")
+        if(SDL2MIXER_GME_SHARED)
+            set(GME_BUILD_STATIC OFF)
+            set(tgt_gme gme_shared)
+        else()
+            set(GME_BUILD_STATIC ON)
+            set(tgt_gme gme_static)
+        endif()
+        set(GME_BUILD_FRAMEWORK OFF)
+        set(GME_BUILD_TESTING OFF)
+        set(GME_BUILD_EXAMPLES OFF)
+        set(GME_ENABLE_UBSAN OFF)
         option(GME_ZLIB "Enable GME to support compressed sound formats" OFF)
         message(STATUS "Using vendored libgme")
         sdl_check_project_in_subfolder(external/libgme libgme SDL2MIXER_VENDORED)
         add_subdirectory(external/libgme EXCLUDE_FROM_ALL)
-        add_library(gme::gme ALIAS gme)
         if(SDL2MIXER_GME_SHARED)
-            list(APPEND INSTALL_EXTRA_TARGETS gme)
+            list(APPEND INSTALL_EXTRA_TARGETS ${tgt_gme})
         endif()
         if(NOT SDL2MIXER_GME_SHARED)
             list(APPEND PC_LIBS -l$<TARGET_FILE_BASE_NAME:gme>)
