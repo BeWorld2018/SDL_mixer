@@ -233,6 +233,7 @@ add_library(SDL2_mixer
     src/codecs/music_wav.c
     src/codecs/music_wavpack.c
     src/codecs/music_xmp.c
+    src/codecs/remap_channels.c
     src/effect_position.c
     src/effect_stereoreverse.c
     src/effects_internal.c
@@ -472,7 +473,7 @@ if(SDL2MIXER_VORBIS_TREMOR)
         message(STATUS "Using system tremor")
         find_package(tremor REQUIRED)
         if(NOT SDL2MIXER_VORBIS_TREMOR_SHARED)
-            list(APPEND PC_REQUIRES tremor)
+            list(APPEND PC_REQUIRES vorbisidec)
         endif()
     endif()
     if(SDL2MIXER_VORBIS_TREMOR_SHARED)
