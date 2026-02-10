@@ -9,7 +9,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 # See docs/release_checklist.md
 set(MAJOR_VERSION 3)
 set(MINOR_VERSION 1)
-set(MICRO_VERSION 2)
+set(MICRO_VERSION 3)
 set(SDL_REQUIRED_VERSION 3.4.0)
 
 project(SDL3_mixer
@@ -115,8 +115,10 @@ if(SDLMIXER_STRICT)
   set(fatal_error "FATAL_ERROR")
 endif()
 
-option(SDLMIXER_TESTS "Build unit tests?" OFF)
-option(SDLMIXER_TESTS_INSTALL "Install unit tests?" OFF)
+option(SDLMIXER_TESTS "Build unit tests?" ${SDLMIXER_ROOTPROJECT})
+cmake_dependent_option(SDLMIXER_TESTS_INSTALL "Install unit tests?" ${SDLMIXER_ROOTPROJECT} "SDLMIXER_INSTALL;SDLMIXER_TESTS" OFF)
+option(SDLMIXER_EXAMPLES "Build the examples directory" ${SDLMIXER_ROOTPROJECT})
+cmake_dependent_option(SDLMIXER_EXAMPLES_INSTALL "Install SDL3_mixer examples" ${SDLMIXER_ROOTPROJECT} "SDLMIXER_INSTALL;SDLMIXER_EXAMPLES" OFF)
 
 # These are implemented in SDL_mixer itself, not using a third-party library.
 option(SDLMIXER_AIFF "Enable AIFF audio" ON)
@@ -1201,6 +1203,13 @@ endif()
 
 if(SDLMIXER_TESTS)
   add_subdirectory(test)
+endif()
+
+##### Examples subproject (must appear after the install/uninstall targets) #####
+
+if(SDLMIXER_EXAMPLES)
+  set(HAVE_EXAMPLES ON)
+  add_subdirectory(examples)
 endif()
 
 set(available_deps)

@@ -217,7 +217,7 @@ typedef struct MIX_Group MIX_Group;
  *
  * \since This macro is available since SDL_mixer 3.0.0.
  */
-#define SDL_MIXER_MICRO_VERSION   2
+#define SDL_MIXER_MICRO_VERSION   3
 
 /**
  * This is the current version number macro of the SDL_mixer headers.
@@ -1288,8 +1288,8 @@ extern SDL_DECLSPEC char ** SDLCALL MIX_GetTrackTags(MIX_Track *track, int *coun
  * \param count a pointer filled in with the number of tracks returned, can be
  *              NULL.
  * \returns an array of the tracks, NULL-terminated, or NULL on failure; call
- *          SDL_GetError() for more information. The returned pointer hould be
- *          freed with SDL_free() when it is no longer needed.
+ *          SDL_GetError() for more information. The returned pointer should
+ *          be freed with SDL_free() when it is no longer needed.
  *
  * \threadsafety It is safe to call this function from any thread.
  *
