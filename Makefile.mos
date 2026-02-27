@@ -9,7 +9,9 @@
 #                             (built via 'ar -M' to avoid object name collisions)
 #
 # Default build enables:
-#   - DRMP3 (MP3) and DRFLAC (FLAC)
+#   - LIBMPG123
+#	- FLAC
+#	- libgme
 #   - libxmp (MOD)
 #   - FluidSynth (MIDI)
 #   - Opus + Ogg
@@ -26,12 +28,12 @@
 # Decoder feature switches (0/1). Use "make ... DECODER_X=0" to disable features.
 DECODER_AIFF 					?= 1
 DECODER_AU 						?= 1
-DECODER_FLAC_DRFLAC 			?= 1
-DECODER_MP3_DRMP3 				?= 1
-DECODER_FLAC 					?= 0
+DECODER_FLAC_DRFLAC 			?= 0
+DECODER_MP3_DRMP3 				?= 0
+DECODER_FLAC 					?= 1
 DECODER_MIDI_FLUIDSYNTH 		?= 1
-DECODER_GME 					?= 0
-DECODER_MP3_MPG123 				?= 0
+DECODER_GME 					?= 1
+DECODER_MP3_MPG123 				?= 1
 DECODER_OPUS 					?= 1
 DECODER_OGGVORBIS_STB 			?= 0
 DECODER_MIDI_TIMIDITY 			?= 0
@@ -46,7 +48,8 @@ AR     = ppc-morphos-ar
 RANLIB = ppc-morphos-ranlib
 STRIP  = ppc-morphos-strip
 
-CDEFS   = -DHAVE_SNPRINTF -DHAVE_UNISTD_H -DHAVE_SETBUF -DHAVE_FORK -DMUSIC_WAV
+CDEFS   = -DHAVE_SNPRINTF -DHAVE_UNISTD_H -DHAVE_SETBUF -DHAVE_FORK -DMUSIC_WAV 
+# -D__SDL_DEBUG
 INCLUDE =  -I. -I./include -I./src/ -I./src/dr_libs -I./src/stb_vorbis -I/gg/usr/local/include/SDL3 -I/gg/usr/local/include -I/gg/usr/local/include/opus
 CFLAGS  =  -noixemul -O3 -mcpu=750 -mtune=7450 -Wno-pointer-sign -fno-strict-aliasing -Wall -ffast-math $(INCLUDE) 
 
@@ -82,7 +85,7 @@ NEED_OGG = 0
 
 ifeq ($(DECODER_FLAC),1)
 LIBS_EXT 	+= -lFLAC
-CDEFS		+= -DDECODER_FLAC
+CDEFS		+= -DDECODER_FLAC_LIBFLAC
 endif
 ifeq ($(DECODER_FLAC_DRFLAC),1)
 LIBS_EXT 	+= 
@@ -100,7 +103,7 @@ ifeq ($(DECODER_WAVPACK),1)
 CDEFS		+= -DDECODER_WAVPACK
 endif
 ifeq ($(DECODER_MP3_MPG123),1)
-LIBS_EXT 	+= -lmpg123_shared 
+LIBS_EXT 	+= -lmpg123
 CDEFS		+= -DDECODER_MP3_MPG123
 endif
 ifeq ($(DECODER_MP3_DRMP3),1)
@@ -181,8 +184,16 @@ ifeq ($(DECODER_FLAC),1)
 MERGE_LIBS += /gg/usr/local/lib/libFLAC.a
 endif
 
+ifeq ($(DECODER_GME),1)
+MERGE_LIBS += /gg/usr/local/lib/libgme.a
+endif
+
+ifeq ($(DECODER_AAC),1)
+MERGE_LIBS += /gg/usr/local/lib/libfaad.a
+endif
+
 ifeq ($(DECODER_MP3_MPG123),1)
-MERGE_LIBS += /gg/usr/local/lib/libmpg123_shared.a
+MERGE_LIBS += /gg/usr/local/lib/libmpg123.a
 endif
 
 OBJECTS = $(SOURCES:.c=.o)
@@ -212,7 +223,7 @@ $(TARGETF): $(TARGET)
 
 # Example programs (stripped to reduce size)
 define LINK_TEST
-	$(CC) -O3 -Wall -noixemul -DHAVE_SIGNAL_H $< -o $@ $(INCLUDE) -L. -lSDL3_mixer -lstdc++ $(LIBS_SDL3)
+	$(CC) -O3 -Wall -noixemul -DHAVE_SIGNAL_H $< -o $@ $(INCLUDE) -L. -lSDL3_mixer -lstdc++ -lz_shared $(LIBS_SDL3)
 	$(STRIP) --strip-unneeded $@
 endef
 
