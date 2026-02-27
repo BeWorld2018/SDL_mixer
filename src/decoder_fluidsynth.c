@@ -112,6 +112,138 @@ static void SDLCALL FLUIDSYNTH_quit(void)
     UnloadModule_fluidsynth();
 }
 
+#ifdef __MORPHOS__
+static bool read_vlq_mem(const Uint8 *data, size_t len, size_t *pos, Uint32 *out)
+{
+    Uint32 v = 0;
+    int count = 0;
+    while (*pos < len && count < 4) {
+        const Uint8 b = data[(*pos)++];
+        v = (v << 7) | (b & 0x7F);
+        count++;
+        if ((b & 0x80) == 0) { *out = v; return true; }
+    }
+    return false;
+}
+
+static Uint16 read_be16_mem(const Uint8 *p) { return (Uint16)((p[0] << 8) | p[1]); }
+static Uint32 read_be32_mem(const Uint8 *p) { return (Uint32)((p[0] << 24) | (p[1] << 16) | (p[2] << 8) | p[3]); }
+
+static double mid_smf_duration_seconds(const Uint8 *buf, size_t len)
+{
+    if (len < 14) return -1.0;
+    if (SDL_memcmp(buf, "MThd", 4) != 0) return -1.0;
+
+    const Uint32 hlen = read_be32_mem(buf + 4);
+    if (hlen < 6 || (8 + hlen) > len) return -1.0;
+
+    const Uint16 ntrks = read_be16_mem(buf + 10);
+    const Uint16 div   = read_be16_mem(buf + 12);
+    if (ntrks == 0) return -1.0;
+    if (div & 0x8000) return -1.0; /* SMPTE division non gérée */
+
+    typedef struct { Uint32 tick; double us_per_q; } TempoEvt;
+    TempoEvt tempos[2048];
+    int tempo_count = 0;
+
+    size_t pos = 8 + hlen;
+    Uint32 max_tick = 0;
+
+    for (Uint16 t = 0; t < ntrks; t++) {
+        if (pos + 8 > len) break;
+        if (SDL_memcmp(buf + pos, "MTrk", 4) != 0) break;
+
+        const Uint32 tlen = read_be32_mem(buf + pos + 4);
+        pos += 8;
+        if (pos + tlen > len) break;
+
+        const Uint8 *trk = buf + pos;
+        size_t trkpos = 0;
+        Uint32 tick = 0;
+        Uint8 running = 0;
+
+        while (trkpos < tlen) {
+            Uint32 delta = 0;
+            if (!read_vlq_mem(trk, tlen, &trkpos, &delta)) break;
+            tick += delta;
+
+            if (trkpos >= tlen) break;
+            Uint8 status = trk[trkpos++];
+
+            if (status < 0x80) {
+                if (!running) break;
+                trkpos--;
+                status = running;
+            } else {
+                running = status;
+            }
+
+            if (status == 0xFF) {
+                if (trkpos + 1 >= tlen) break;
+                const Uint8 type = trk[trkpos++];
+                Uint32 mlen = 0;
+                if (!read_vlq_mem(trk, tlen, &trkpos, &mlen)) break;
+                if (trkpos + mlen > tlen) break;
+
+                if (type == 0x51 && mlen == 3) {
+                    const Uint32 us = (trk[trkpos] << 16) | (trk[trkpos+1] << 8) | trk[trkpos+2];
+                    if (tempo_count < (int)SDL_arraysize(tempos)) {
+                        tempos[tempo_count].tick = tick;
+                        tempos[tempo_count].us_per_q = (double)us;
+                        tempo_count++;
+                    }
+                }
+
+                trkpos += mlen;
+                if (type == 0x2F) break;
+            } else if (status == 0xF0 || status == 0xF7) {
+                Uint32 slen = 0;
+                if (!read_vlq_mem(trk, tlen, &trkpos, &slen)) break;
+                trkpos += (size_t)slen;
+            } else {
+                const Uint8 hi = status & 0xF0;
+                trkpos += (size_t)((hi == 0xC0 || hi == 0xD0) ? 1 : 2);
+            }
+        }
+
+        if (tick > max_tick) max_tick = tick;
+        pos += tlen;
+    }
+
+    /* tri tempos par tick */
+    for (int i = 0; i < tempo_count - 1; i++) {
+        for (int j = i + 1; j < tempo_count; j++) {
+            if (tempos[j].tick < tempos[i].tick) {
+                TempoEvt tmp = tempos[i]; tempos[i] = tempos[j]; tempos[j] = tmp;
+            }
+        }
+    }
+
+    double total_us = 0.0;
+    Uint32 last_tick = 0;
+    double cur_us_per_q = 500000.0; /* 120 bpm */
+
+    int idx = 0;
+    while (idx < tempo_count && tempos[idx].tick == 0) { cur_us_per_q = tempos[idx].us_per_q; idx++; }
+
+    while (idx < tempo_count) {
+        const Uint32 tt = tempos[idx].tick;
+        if (tt > max_tick) break;
+        total_us += (double)(tt - last_tick) * (cur_us_per_q / (double)div);
+        last_tick = tt;
+        cur_us_per_q = tempos[idx].us_per_q;
+        idx++;
+    }
+
+    if (max_tick > last_tick) {
+        total_us += (double)(max_tick - last_tick) * (cur_us_per_q / (double)div);
+    }
+
+    return total_us / 1000000.0;
+}
+
+#endif
+
 static bool SDLCALL FLUIDSYNTH_init_audio(SDL_IOStream *io, SDL_AudioSpec *spec, SDL_PropertiesID props, Sint64 *duration_frames, void **audio_userdata)
 {
     // Try to load a soundfont file if we can.
@@ -180,8 +312,30 @@ static bool SDLCALL FLUIDSYNTH_init_audio(SDL_IOStream *io, SDL_AudioSpec *spec,
     spec->format = SDL_AUDIO_F32;
     spec->channels = 2;
     // Use the device's current sample rate, already set in spec->freq
-
+#ifndef __MORPHOS__
     *duration_frames = -1;  // !!! FIXME: fluid_player_get_total_ticks can give us a time duration, but we don't have a player until we set up the track later.
+#else
+	/* Durée MIDI (SMF) : calcul tempo map ? frames */
+	*duration_frames = MIX_DURATION_UNKNOWN;
+
+	size_t midilen = 0;
+	Uint8 *midibuf = (Uint8 *)SDL_LoadFile_IO(io, &midilen, false);
+	if (midibuf) {
+		const double sec = mid_smf_duration_seconds(midibuf, midilen);
+		SDL_free(midibuf);
+
+		if (sec > 0.0) {
+			*duration_frames = (Sint64)SDL_lround(sec * (double)spec->freq);
+		}
+	}
+
+	/* rewind pour le vrai chargement */
+	if (SDL_SeekIO(io, 0, SDL_IO_SEEK_SET) < 0) {
+		if (sfio && closesfio) SDL_CloseIO(sfio);
+		return false;
+	}
+
+#endif
     *audio_userdata = adata;
 
     const SDL_PropertiesID fluidsynth_props = (SDL_PropertiesID) SDL_GetNumberProperty(props, MIX_PROP_DECODER_FLUIDSYNTH_PROPS_NUMBER, 0);
@@ -291,6 +445,12 @@ static bool SDLCALL FLUIDSYNTH_init_track(void *audio_userdata, SDL_IOStream *io
     fluidsynth.fluid_settings_setnum(tdata->settings, "synth.reverb.level", 0.15);
     fluidsynth.fluid_settings_setnum(tdata->settings, "synth.reverb.width", 4);
     fluidsynth.fluid_settings_setnum(tdata->settings, "synth.reverb.room-size", 0.6);
+
+#ifdef __MORPHOS__
+	fluidsynth.fluid_settings_setnum(tdata->settings, "synth.polyphony", 128);
+	fluidsynth.fluid_settings_setnum(tdata->settings, "audio.periods", 8);
+	fluidsynth.fluid_settings_setnum(tdata->settings, "audio.period-size", 512);
+#endif
 
     // let custom properties override anything we already set internally. You break it, you buy it!
     SDL_EnumerateProperties(adata->fluidsynth_props, SetCustomFluidsynthProperties, tdata);
