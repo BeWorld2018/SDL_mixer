@@ -24,6 +24,7 @@
 #include "SDL_mixer_internal.h"
 
 #include <gme/gme.h>
+#include <limits.h>
 
 #if defined(FLUIDSYNTH_DYNAMIC) && defined(SDL_ELF_NOTE_DLOPEN)
 SDL_ELF_NOTE_DLOPEN(
@@ -200,7 +201,13 @@ static bool SDLCALL GME_decode(void *track_userdata, SDL_AudioStream *stream)
 static bool SDLCALL GME_seek(void *track_userdata, Uint64 frame)
 {
     Music_Emu *emu = (Music_Emu *) track_userdata;
-    gme_err_t err = gme.gme_seek_samples(emu, (int) frame);
+
+    const int channels = 2;  // GME backend outputs stereo S16
+    Uint64 samples = frame * (Uint64)channels;
+
+    if (samples > (Uint64)INT_MAX) samples = (Uint64)INT_MAX;
+
+    gme_err_t err = gme.gme_seek_samples(emu, (int)samples);
     return err ? SDL_SetError("gme_seek_samples failed: %s", err) : true;
 }
 
