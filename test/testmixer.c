@@ -1,3 +1,38 @@
+/*
+  SDL_mixer:  An audio mixer library based on the SDL library
+  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
+
+  This software is provided 'as-is', without any express or implied
+  warranty.  In no event will the authors be held liable for any damages
+  arising from the use of this software.
+
+  Permission is granted to anyone to use this software for any purpose,
+  including commercial applications, and to alter it and redistribute it
+  freely, subject to the following restrictions:
+
+  1. The origin of this software must not be misrepresented; you must not
+     claim that you wrote the original software. If you use this software
+     in a product, an acknowledgment in the product documentation would be
+     appreciated but is not required.
+  2. Altered source versions must be plainly marked as such, and must not be
+     misrepresented as being the original software.
+  3. This notice may not be removed or altered from any source distribution.
+*/
+
+/*
+  PLEASE NOTE THAT THE CODE IN THIS FILE IS ATROCIOUS, DON'T USE IT AS A
+  FOUNDATION FOR YOUR OWN PROGRAMS.
+
+  This is mostly just meant to test various things in quick-and-dirty ways.
+
+  I might delete it later.
+
+  I strongly recommend you use the programs in the "examples" directory to
+  get started. You can see them running in your web browser at:
+
+  https://examples.libsdl.org/SDL3_mixer/
+*/
+
 #define SDL_MAIN_USE_CALLBACKS 1  /* use the callbacks instead of main() */
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
@@ -158,7 +193,18 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
     SDL_Log("%s", "");
 
     const char *audiofname = argv[1];
+#if 1
     MIX_Audio *audio = MIX_LoadAudio(mixer, audiofname, false);
+#else
+    size_t databuffersize = 0;
+    void *databuffer = SDL_LoadFile(audiofname, &databuffersize);
+    if (!databuffer) {
+        SDL_Log("Failed to load file '%s' from disk: %s", audiofname, SDL_GetError());
+        return SDL_APP_FAILURE;
+    }
+    MIX_Audio *audio = MIX_LoadAudioNoCopy(mixer, databuffer, databuffersize, true);
+#endif
+
     //MIX_Audio *audio = MIX_CreateSineWaveAudio(mixer, 300, 0.25f, 5000);
     if (!audio) {
         SDL_Log("Failed to load '%s': %s", audiofname, SDL_GetError());

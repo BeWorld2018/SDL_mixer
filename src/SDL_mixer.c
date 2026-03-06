@@ -462,7 +462,11 @@ static void SDLCALL TrackGetCallback(void *userdata, SDL_AudioStream *stream, in
             }
 
             if (track_stopped) {
-                TrackStopped(track);
+                if (track->halt_when_exhausted) {
+                    TrackStopped(track);
+                } else {
+                    break;  // done with this track for now, but don't halt the track. We'll try it again later.
+                }
             }
         }
     }
@@ -922,6 +926,20 @@ bool MIX_GetMixerFormat(MIX_Mixer *mixer, SDL_AudioSpec *spec)
     return SDL_GetAudioStreamFormat(mixer->output_stream, NULL, spec);
 }
 
+void MIX_LockMixer(MIX_Mixer *mixer)
+{
+    if (mixer) {
+        LockMixer(mixer);
+    }
+}
+
+void MIX_UnlockMixer(MIX_Mixer *mixer)
+{
+    if (mixer) {
+        UnlockMixer(mixer);
+    }
+}
+
 static const MIX_Decoder *PrepareDecoder(SDL_IOStream *io, MIX_Audio *audio)
 {
     const char *decoder_name = SDL_GetStringProperty(audio->props, MIX_PROP_AUDIO_DECODER_STRING, NULL);
@@ -935,7 +953,7 @@ static const MIX_Decoder *PrepareDecoder(SDL_IOStream *io, MIX_Audio *audio)
             if (decoder->init_audio(io, &audio->spec, audio->props, &audio->duration_frames, &audio->decoder_userdata)) {
                 audio->decoder = decoder;
                 return decoder;
-            } else if (SDL_SeekIO(io, 0, SDL_IO_SEEK_SET) == -1) {   // note this seeks to offset 0, because we're using an IoClamp.
+            } else if (SDL_SeekIO(io, 0, SDL_IO_SEEK_SET) < 0) {   // note this seeks to offset 0, because we're using an IoClamp.
                 SDL_SetError("Can't seek in stream to find proper decoder");
                 return NULL;
             }
@@ -1060,7 +1078,7 @@ MIX_Audio *MIX_LoadAudioWithProperties(SDL_PropertiesID props)  // lets you spec
     audio_userdata = audio->decoder_userdata;  // less wordy access to this pointer.  :)
 
     // Go back to start of the SDL_IOStream, since we're either precaching, predecoding, or maybe just getting ready to actually play the thing.
-    if (io && (SDL_SeekIO(io, 0, SDL_IO_SEEK_SET) == -1)) {   // note this seeks to offset 0, because we're using an IoClamp.
+    if (io && (SDL_SeekIO(io, 0, SDL_IO_SEEK_SET) < 0)) {   // note this seeks to offset 0, because we're using an IoClamp.
         goto failed;
     }
 
@@ -1183,6 +1201,37 @@ MIX_Audio *MIX_LoadAudio(MIX_Mixer *mixer, const char *path, bool predecode)
     }
 
     return retval;
+}
+
+MIX_Audio *MIX_LoadAudioNoCopy(MIX_Mixer *mixer, const void *data, size_t datalen, bool free_when_done)
+{
+    if (!data) {
+        SDL_InvalidParamError("data");
+        return NULL;
+    }
+
+    SDL_IOStream *io = SDL_IOFromConstMem(data, datalen);
+    if (!io) {
+        return NULL;
+    }
+
+    const SDL_PropertiesID props = SDL_CreateProperties();
+    SDL_SetPointerProperty(props, MIX_PROP_AUDIO_LOAD_PREFERRED_MIXER_POINTER, mixer);
+    SDL_SetPointerProperty(props, MIX_PROP_AUDIO_LOAD_IOSTREAM_POINTER, io);
+    SDL_SetBooleanProperty(props, MIX_PROP_AUDIO_LOAD_CLOSEIO_BOOLEAN, true);
+    SDL_SetBooleanProperty(props, MIX_PROP_AUDIO_LOAD_ONDEMAND_BOOLEAN, true);  // so it doesn't make a copy to precache
+    MIX_Audio *audio = MIX_LoadAudioWithProperties(props);
+    SDL_DestroyProperties(props);
+
+    if (!audio) {
+        return NULL;
+    }
+
+    audio->precache = data;
+    audio->precachelen = datalen;
+    audio->free_precache = free_when_done;
+
+    return audio;
 }
 
 MIX_Audio *MIX_LoadRawAudio_IO(MIX_Mixer *mixer, SDL_IOStream *io, const SDL_AudioSpec *spec, bool closeio)
@@ -1390,6 +1439,7 @@ MIX_Track *MIX_CreateTrack(MIX_Mixer *mixer)
     SDL_SetAudioStreamGetCallback(track->output_stream, TrackGetCallback, track);
 
     track->mixer = mixer;
+    track->halt_when_exhausted = true;
 
     LockMixer(mixer);
     track->next = mixer->all_tracks;
@@ -2170,7 +2220,7 @@ static Sint64 GetTrackOptionFramesOrTicks(MIX_Track *track, SDL_PropertiesID opt
     } else if (SDL_HasProperty(options, msprop)) {
         const Sint64 val = SDL_GetNumberProperty(options, msprop, defval);
         Sint64 val_frames = MIX_TrackMSToFrames(track, val);
-        if (val_frames == -1) {
+        if (val_frames < 0) {
             val_frames = 0;
         }
         return (val < 0) ? val : val_frames;
@@ -2193,6 +2243,8 @@ bool MIX_PlayTrack(MIX_Track *track, SDL_PropertiesID options)
     Sint64 fade_in = 0;
     Sint64 append_silence_frames = 0;
     float fade_start_gain = 0.0f;
+    bool halt_when_exhausted = true;
+
     LockTrack(track);
     if (options) {
         loops = (int) SDL_GetNumberProperty(options, MIX_PROP_PLAY_LOOPS_NUMBER, loops);
@@ -2200,8 +2252,9 @@ bool MIX_PlayTrack(MIX_Track *track, SDL_PropertiesID options)
         start_pos = GetTrackOptionFramesOrTicks(track, options, MIX_PROP_PLAY_START_FRAME_NUMBER, MIX_PROP_PLAY_START_MILLISECOND_NUMBER, start_pos);
         loop_start = GetTrackOptionFramesOrTicks(track, options, MIX_PROP_PLAY_LOOP_START_FRAME_NUMBER, MIX_PROP_PLAY_LOOP_START_MILLISECOND_NUMBER, loop_start);
         fade_in = GetTrackOptionFramesOrTicks(track, options, MIX_PROP_PLAY_FADE_IN_FRAMES_NUMBER, MIX_PROP_PLAY_FADE_IN_MILLISECONDS_NUMBER, fade_in);
-        fade_start_gain = SDL_GetFloatProperty(options, MIX_PROP_PLAY_FADE_IN_START_GAIN_FLOAT, 0.0f);
+        fade_start_gain = SDL_GetFloatProperty(options, MIX_PROP_PLAY_FADE_IN_START_GAIN_FLOAT, fade_start_gain);
         append_silence_frames = GetTrackOptionFramesOrTicks(track, options, MIX_PROP_PLAY_APPEND_SILENCE_FRAMES_NUMBER, MIX_PROP_PLAY_APPEND_SILENCE_MILLISECONDS_NUMBER, append_silence_frames);
+        halt_when_exhausted = SDL_GetBooleanProperty(options, MIX_PROP_PLAY_HALT_WHEN_EXHAUSTED_BOOLEAN, halt_when_exhausted);
 
         if (start_pos < 0) {
             start_pos = 0;
@@ -2236,6 +2289,7 @@ bool MIX_PlayTrack(MIX_Track *track, SDL_PropertiesID options)
     track->silence_frames = (append_silence_frames > 0) ? -append_silence_frames : 0;  // negative means "there is still actual audio data to play", positive means "we're done with actual data, feed silence now." Zero means no silence (left) to feed.
     track->state = MIX_STATE_PLAYING;
     track->position = start_pos;
+    track->halt_when_exhausted = halt_when_exhausted;
 
     UnlockTrack(track);
     return true;
@@ -2349,7 +2403,7 @@ bool MIX_StopAllTracks(MIX_Mixer *mixer, Sint64 fade_out_ms)
 
     for (MIX_Track *track = mixer->all_tracks; track != NULL; track = track->next) {
         Sint64 fade_out_frames = MIX_TrackMSToFrames(track, fade_out_ms);
-        if (fade_out_frames == -1) {
+        if (fade_out_frames < 0) {
             fade_out_frames = 0;
         }
         StopTrack(track, (fade_out_ms > 0) ? fade_out_frames : -1);
@@ -2376,7 +2430,7 @@ bool MIX_StopTag(MIX_Mixer *mixer, const char *tag, Sint64 fade_out_ms)
     const size_t total = list->num_tracks;
     for (size_t i = 0; i < total; i++) {
         Sint64 fade_out_frames = MIX_TrackMSToFrames(list->tracks[i], fade_out_ms);
-        if (fade_out_frames == -1) {
+        if (fade_out_frames < 0) {
             fade_out_frames = 0;
         }
         StopTrack(list->tracks[i], (fade_out_ms > 0) ? fade_out_frames : -1);
@@ -2738,7 +2792,6 @@ bool MIX_SetTrackStereo(MIX_Track *track, const MIX_StereoGains *gains)
     return true;
 
 }
-
 
 bool MIX_SetTrack3DPosition(MIX_Track *track, const MIX_Point3D *position)
 {
