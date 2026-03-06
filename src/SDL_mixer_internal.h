@@ -299,3 +299,15 @@ extern const MIX_Decoder MIX_Decoder_XMP;
 extern const MIX_Decoder MIX_Decoder_SINEWAVE;
 extern const MIX_Decoder MIX_Decoder_RAW;
 
+#ifdef __SDL_DEBUG
+	#include <exec/types.h>
+	struct ExecBase *SysBase;
+	#define E(fmt, ...) ({((STRPTR (*)(void *, CONST_STRPTR , APTR (*)(APTR, UBYTE), STRPTR , ...))*(void**)((long)(SysBase) - 922))((void*)(SysBase), fmt, (APTR)1, NULL, ##__VA_ARGS__);})
+	#define D(fmt, ...) { \
+		char nfmt[1024]; \
+		snprintf(nfmt, sizeof(nfmt), "[%s] %s\n", __FUNCTION__, fmt); \
+		E(nfmt, ##__VA_ARGS__); \
+	}
+#else
+	#define D(x, ...)
+#endif

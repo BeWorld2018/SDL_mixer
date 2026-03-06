@@ -1,7 +1,7 @@
 # Makefile for building SDL3_mixer (MorphOS)
 #
 # Requirements:
-#   - SDL 3.4.0 or newer
+#   - SDL 3.4.x or newer
 #
 # Outputs:
 #   - libSDL3_mixer_light.a : SDL3_mixer built with the enabled decoders
