@@ -208,7 +208,7 @@ typedef struct MIX_Group MIX_Group;
  *
  * \since This macro is available since SDL_mixer 3.0.0.
  */
-#define SDL_MIXER_MINOR_VERSION   1
+#define SDL_MIXER_MINOR_VERSION   2
 
 /**
  * The current micro (or patchlevel) version of the SDL_mixer headers.
@@ -217,7 +217,7 @@ typedef struct MIX_Group MIX_Group;
  *
  * \since This macro is available since SDL_mixer 3.0.0.
  */
-#define SDL_MIXER_MICRO_VERSION   3
+#define SDL_MIXER_MICRO_VERSION   0
 
 /**
  * This is the current version number macro of the SDL_mixer headers.
@@ -551,7 +551,7 @@ extern SDL_DECLSPEC bool SDLCALL MIX_GetMixerFormat(MIX_Mixer *mixer, SDL_AudioS
  * locked until the final matching unlock call.
  *
  * Do not lock the mixer for significant amounts of time, or it can cause
- * audio dropouts. Just do simply things quickly and unlock again.
+ * audio dropouts. Just do simple things quickly and unlock again.
  *
  * Locking a NULL mixer is a safe no-op.
  *
