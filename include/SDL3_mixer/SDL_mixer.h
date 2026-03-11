@@ -208,7 +208,7 @@ typedef struct MIX_Group MIX_Group;
  *
  * \since This macro is available since SDL_mixer 3.0.0.
  */
-#define SDL_MIXER_MINOR_VERSION   2
+#define SDL_MIXER_MINOR_VERSION   3
 
 /**
  * The current micro (or patchlevel) version of the SDL_mixer headers.
@@ -1885,6 +1885,14 @@ extern SDL_DECLSPEC Sint64 SDLCALL MIX_FramesToMS(int sample_rate, Sint64 frames
  *   possible. Note that a track is not consider exhausted until all its loops
  *   and appended silence have been mixed (and also, that loops don't mean
  *   anything when the input is an AudioStream). Default true.
+ * - `MIX_PROP_PLAY_START_ORDER_NUMBER`: This is a special-case property that
+ *   most apps can ignore. For mod file formats, start mixing from a specific
+ *   "order" index instead of the start of the file. A value < 0 will cause
+ *   this property to be ignored. If the decoder doesn't support this
+ *   property, it will also be ignored. If this property is _not_ ignored, the
+ *   MIX_PROP_PLAY_START_FRAME_NUMBER and
+ *   MIX_PROP_PLAY_START_MILLISECOND_NUMBER properties will be ignored
+ *   instead. Default -1. Since SDL_mixer 3.2.2.
  *
  * If this function fails, mixing of this track will not start (or restart, if
  * it was already started).
@@ -1910,6 +1918,7 @@ extern SDL_DECLSPEC bool SDLCALL MIX_PlayTrack(MIX_Track *track, SDL_PropertiesI
 #define MIX_PROP_PLAY_MAX_MILLISECONDS_NUMBER "SDL_mixer.play.max_milliseconds"
 #define MIX_PROP_PLAY_START_FRAME_NUMBER "SDL_mixer.play.start_frame"
 #define MIX_PROP_PLAY_START_MILLISECOND_NUMBER "SDL_mixer.play.start_millisecond"
+#define MIX_PROP_PLAY_START_ORDER_NUMBER "SDL_mixer.play.start_order"
 #define MIX_PROP_PLAY_LOOP_START_FRAME_NUMBER "SDL_mixer.play.loop_start_frame"
 #define MIX_PROP_PLAY_LOOP_START_MILLISECOND_NUMBER "SDL_mixer.play.loop_start_millisecond"
 #define MIX_PROP_PLAY_FADE_IN_FRAMES_NUMBER "SDL_mixer.play.fade_in_frames"
@@ -2037,8 +2046,12 @@ extern SDL_DECLSPEC bool SDLCALL MIX_StopTrack(MIX_Track *track, Sint64 fade_out
  *
  * Once a track has completed any fadeout and come to a stop, it will call its
  * MIX_TrackStoppedCallback, if any. It is legal to assign the track a new
- * input and/or restart it during this callback. This function does not
- * prevent new play requests from being made.
+ * input and/or restart it during this callback.
+ *
+ * This function does not prevent new play requests from being made; it’s
+ * legal to use this function to begin fading all playing tracks but then
+ * start other tracks playing normally while those fade-outs are still in
+ * progress.
  *
  * \param mixer the mixer on which to stop all tracks.
  * \param fade_out_ms the number of milliseconds to spend fading out to

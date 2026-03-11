@@ -381,6 +381,7 @@ static bool AIFF_init_audio_internal(AIFF_AudioData *adata, SDL_IOStream *io, SD
     adata->framesize = channels * (samplesize / 8);
     adata->stop = adata->start + channels * numsamples * (samplesize / 8);
     adata->fetch = FetchPCM;
+    adata->num_pcm_frames = (Sint64) numsamples;
 
     // Decode the audio data format
     spec->freq = (int)frequency;
@@ -499,7 +500,6 @@ static bool SDLCALL AIFF_init_audio(SDL_IOStream *io, SDL_AudioSpec *spec, SDL_P
         return false;
     }
 
-    adata->num_pcm_frames = MIX_DURATION_UNKNOWN;  // !!! FIXME: AIFF_init_audio_internal needs to set this.
     const bool rc = AIFF_init_audio_internal(adata, io, spec, props);
     if (!rc) {
         SDL_free(adata);
@@ -581,6 +581,7 @@ const MIX_Decoder MIX_Decoder_AIFF = {
     AIFF_init_track,
     AIFF_decode,
     AIFF_seek,
+    NULL,  // jump_to_order
     AIFF_quit_track,
     AIFF_quit_audio,
     NULL  // quit

@@ -874,7 +874,7 @@ static bool ParseFMT(WAV_AudioData *adata, SDL_IOStream *io, SDL_AudioSpec *spec
         adata->encoding = (Uint16)SDL_Swap32LE(fmt.subencoding);
         adata->channelmask = SDL_Swap32LE(fmt.channelsmask);
     } else {
-        adata->channelmask = StandardSDLWavChannelMask(fmt.format.channels);
+        adata->channelmask = StandardSDLWavChannelMask((int) SDL_Swap16LE(fmt.format.channels));
     }
 
     // Decode the audio data format
@@ -934,7 +934,7 @@ static bool ParseFMT(WAV_AudioData *adata, SDL_IOStream *io, SDL_AudioSpec *spec
             break;
         case 16:
             switch(adata->encoding) {
-            case PCM_CODE: spec->format = SDL_AUDIO_S16; break;
+            case PCM_CODE: spec->format = SDL_AUDIO_S16LE; break;
             default: unknown_bits = true; break;
             }
             break;
@@ -949,8 +949,8 @@ static bool ParseFMT(WAV_AudioData *adata, SDL_IOStream *io, SDL_AudioSpec *spec
             break;
         case 32:
             switch(adata->encoding) {
-            case PCM_CODE:   spec->format = SDL_AUDIO_S32; break;
-            case IEEE_FLOAT_CODE: spec->format = SDL_AUDIO_F32; break;
+            case PCM_CODE:   spec->format = SDL_AUDIO_S32LE; break;
+            case IEEE_FLOAT_CODE: spec->format = SDL_AUDIO_F32LE; break;
             default: unknown_bits = true; break;
             }
             break;
@@ -1785,6 +1785,7 @@ const MIX_Decoder MIX_Decoder_WAV = {
     WAV_init_track,
     WAV_decode,
     WAV_seek,
+    NULL,  // jump_to_order
     WAV_quit_track,
     WAV_quit_audio,
     NULL  // quit
