@@ -30,7 +30,9 @@ function name and a brief explanation about what to do with it.
 
 ## Things that are totally gone
 
-- Native MIDI has been removed. We have ripped this piece out of SDL2_mixer
+- Native MIDI has been removed (we can still play midi files like
+other file formats, just not to native midi hardware). We have
+ripped this piece out of SDL2_mixer
   and packaged it as a separate library that can be used alongside SDL3_mixer,
   or without SDL_mixer at all: https://github.com/libsdl-org/SDL_native_midi
 
@@ -274,7 +276,7 @@ MIX_PauseTrack() and MIX_ResumeTrack().
 ## Music state
 
 Mix_MusicDuration() became MIX_GetAudioDuration() and Mix_GetMusicPosition() became
-MIX_GetTrackPlaybackPosition(). MIX_SetMusicPosition() is now
+MIX_GetTrackPlaybackPosition(). Mix_SetMusicPosition() is now
 MIX_SetTrackPlaybackPosition().
 
 
@@ -299,7 +301,7 @@ can discuss it!
 - MIX_MINOR_VERSION => SDL_MIXER_MAJOR_VERSION
 - MIX_PATCHLEVEL => SDL_MIXER_MICRO_VERSION
 - MIX_VERSION => SDL_MIXER_VERSION
-- MIX_Linked_Version => MIX_Version
+- Mix_Linked_Version => MIX_Version
 - Mix_Version => MIX_Version
 - SDL_MIXER_COMPILEDVERSION => SDL_MIXER_VERSION
 - MIX_InitFlags => not needed in SDL3_mixer.
@@ -408,4 +410,5 @@ can discuss it!
 - Mix_GetTimidityCfg => no equivalent in SDL3_mixer.
 - Mix_GetChunk => MIX_GetTrackAudio or MIX_GetTrackAudioStream
 - Mix_CloseAudio => MIX_DestroyMixer
-
+- Mix_GetError => SDL_GetError
+- Mix_SetError => SDL_SetError

@@ -575,6 +575,9 @@ static void SDLCALL MixerCallback(void *userdata, SDL_AudioStream *stream, int a
         MIX_Track *next_track = NULL;
         for (MIX_Track *track = group->tracks; track; track = next_track) {
             next_track = track->group_next;  // this won't save you from a callback going totally rogue, but it'll deal with the current track leaving the group.
+
+            track->currently_mixing = true;
+
             const int to_be_read = (additional_amount / SDL_AUDIO_FRAMESIZE(mixer->spec)) * SDL_AUDIO_FRAMESIZE(track->output_spec);
             const int br = SDL_GetAudioStreamData(track->output_stream, getbuf, to_be_read);
             if (br > 0) {
@@ -605,6 +608,11 @@ static void SDLCALL MixerCallback(void *userdata, SDL_AudioStream *stream, int a
                         SDL_assert(!"Unexpected spatialization mode");
                         break;
                 }
+            }
+
+            track->currently_mixing = false;
+            if (track->destroy_requested) {  // callback asked to destroy the track while we were still using it.
+                MIX_DestroyTrack(track);  // actually kill it now.
             }
         }
 
@@ -1503,6 +1511,16 @@ void MIX_DestroyTrack(MIX_Track *track)
     MIX_Mixer *mixer = track->mixer;
 
     LockMixer(mixer);
+
+    // handle the case where someone destroys a track during a mixer callback.  :O
+    //  tracks are not currently reference-counted like MIX_Audio objects are, but
+    //  we'll catch this specific case for now.
+    if (track->currently_mixing) {
+        track->destroy_requested = true;
+        UnlockMixer(mixer);
+        return;
+    }
+
     if (track->prev) {
         track->prev->next = track->next;
     } else {
