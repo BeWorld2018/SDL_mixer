@@ -1,46 +1,37 @@
-# Makefile to build the SDL2_mixer library
-# 
-# -D__SDL_DEBUG
+# Makefile to build SDL2_mixer for MorphOS
+# Usage examples:
+#   make -f makefile.mos
+#   make -f makefile.mos clean
+#   make -f makefile.mos USE_OPUS=0 USE_MPG123=0
+#   make -f makefile.mos V=1
+#   make -f makefile.mos sdk
+#   make -f makefile.mos install
+#
+# Feature switches. Override them on the command line when needed.
 
-
-# wav music support
 USE_WAV=1
-# ogg/vorbis music support
 USE_OGG=1
-# use integer-only Tremor (libvorbisidec) instead of libvorbis?
-USE_TREMOR=1
-# use stb_vorbis instead of libvorbis?
-USE_STBVORBIS=0
-# flac music support (using libflac)
-USE_FLAC=1
-# flac music support (using dr_flac)
-USE_DRFLAC=0
-# opus music support
+USE_TREMOR=0
+USE_STBVORBIS=1
+USE_FLAC=0
+USE_DRFLAC=1
 USE_OPUS=1
-# mp3 music support (using mpg123)
 USE_MPG123=1
-# mp3 music support (using mini_mp3)
 USE_MINIMP3=0
-# midi music support (using timidity)
 USE_TIMIDITY=1
-# midi music support (using fluidsynth)
 USE_FLUIDSYNTH=0
-# tracker music support (using libxmp)
 USE_XMP=1
-# tracker music support (using libmodplug)
 USE_MODPLUG=0
-# GME
 USE_GME=0
-# wavpack music support
 USE_WAVPACK=0
 
 
-CC  = ppc-morphos-gcc-11 -noixemul 
+CC  = ppc-morphos-gcc-9 -noixemul 
 AR	= ppc-morphos-ar
 
-INCLUDE =  -IMorphOS/sdk -I./include -I./src/ -I./src/codecs -I/usr/local/include/SDL2 -I. -I/usr/local/include -I/usr/local/include/opus
-CFLAGS  =  -mresident32 -O3 -mcpu=750 -mtune=7450 -Wno-pointer-sign -fno-strict-aliasing -Wall -ffast-math -DHAVE_SNPRINTF -DHAVE_UNISTD_H -DHAVE_SETBUF -DHAVE_FORK $(INCLUDE)
-LIBS += -L/usr/local/lib
+INCLUDE =  -IMorphOS/sdk -I./include -I./src/ -I./src/codecs -I/gg/usr/local/include/SDL2 -I. -I/gg/usr/local/include 
+CFLAGS  =  -mresident32 -O3 -mcpu=750 -mtune=7450 -Wno-pointer-sign -fno-strict-aliasing -Wall -ffast-math -DHAVE_SNPRINTF -DHAVE_UNISTD_H -DHAVE_SETBUF -DHAVE_FORK
+LIBS += -L/gg/usr/local/lib
 SDL2_LIB = -lSDL2 -lGL
 
 ifeq ($(USE_WAV),1)
@@ -65,7 +56,7 @@ endif
 
 ifeq ($(USE_FLAC),1)
 CFLAGS+= -DMUSIC_FLAC_LIBFLAC
-LIBS+= -lflac 
+LIBS+= -lFLAC
 endif
 
 ifeq ($(USE_DRFLAC),1)
@@ -74,6 +65,7 @@ endif
 
 ifeq ($(USE_OPUS),1)
 CFLAGS+= -DMUSIC_OPUS
+INCLUDE += -I/gg/usr/local/include/opus
 LIBS+= -lopusfile -lopus
 NEED_LIBOGG=1
 endif
@@ -161,10 +153,18 @@ SOURCES = \
 	src/codecs/music_timidity.c \
 	src/codecs/music_wav.c \
 	src/codecs/music_xmp.c \
-	src/codecs/timidity/common.c src/codecs/timidity/instrum.c src/codecs/timidity/mix.c src/codecs/timidity/output.c \
-	src/codecs/timidity/playmidi.c src/codecs/timidity/readmidi.c src/codecs/timidity/resample.c \
-	src/codecs/timidity/tables.c src/codecs/timidity/timidity.c 
-		 	
+	src/codecs/remap_channels.c \
+	src/codecs/timidity/common.c \
+	src/codecs/timidity/instrum.c \
+	src/codecs/timidity/mix.c \
+	src/codecs/timidity/output.c \
+	src/codecs/timidity/playmidi.c \
+	src/codecs/timidity/readmidi.c \
+	src/codecs/timidity/resample.c \
+	src/codecs/timidity/tables.c \
+	src/codecs/timidity/timidity.c
+	
+CFLAGS += $(INCLUDE)	
 
 CORESOURCES = MorphOS/*.c
 COREOBJECTS = $(shell echo $(CORESOURCES) | sed -e 's,\.c,\.o,g')
@@ -182,9 +182,9 @@ sdklibs:
 	@cd MorphOS/devenv; if ! $(MAKE) all; then exit 1; fi;
 
 sdk: sdklibs
-	cp include/SDL_mixer.h /usr/local/include/SDL2
-	cp MorphOS/devenv/lib/libSDL2_mixer.a /usr/local/lib/libSDL2_mixer.a
-	cp MorphOS/devenv/lib/libb32/libSDL2_mixer.a /usr/local/lib/libb32/libSDL2_mixer.a
+	cp include/SDL_mixer.h /gg/usr/local/include/SDL2
+	cp MorphOS/devenv/lib/libSDL2_mixer.a /gg/usr/local/lib/libSDL2_mixer.a
+	cp MorphOS/devenv/lib/libb32/libSDL2_mixer.a /gg/usr/local/lib/libb32/libSDL2_mixer.a
 
 install: $(LIBRARY)
 	@cp $(LIBRARY) LIBS:
@@ -203,15 +203,15 @@ $(TARGET): $(OBJECTS)
 
 $(LIBRARY): $(TARGET) $(COREOBJECTS)
 	$(LINKING)
-	$(CC) -nostartfiles -mresident32 -Wl,-Map=sdl2_mixer.map $(COREOBJECTS) -o $@.db -L. -lSDL2_mixer -L/usr/local/lib $(SDL2_LIB) $(LIBS) -lm 
+	$(CC) -nostartfiles -mresident32 -Wl,-Map=sdl2_mixer.map $(COREOBJECTS) -o $@.db -L. -lSDL2_mixer -L/gg/usr/local/lib $(SDL2_LIB) $(LIBS) -lm 
 	$(STRIPPING)
 	@ppc-morphos-strip -o $@ --remove-section=.comment $@.db
 
 playwave: sdklibs playwave.c
-	$(CC) -O2 -Wall playwave.c -o $@ $(INCLUDE) -DUSE_INLINE_STDARG  -LMorphOS/devenv/lib -L/usr/local/lib -lSDL2_mixer $(SDL2_LIB) -lm 
+	$(CC) -O2 -Wall playwave.c -o $@ $(INCLUDE) -DUSE_INLINE_STDARG  -LMorphOS/devenv/lib -L/gg/usr/local/lib -lSDL2_mixer $(SDL2_LIB) -lm 
 
 playmus: sdklibs playmus.c
-	$(CC) -O2 -Wall playmus.c -o $@ $(INCLUDE) -DUSE_INLINE_STDARG -LMorphOS/devenv/lib -L/usr/local/lib -lSDL2_mixer $(SDL2_LIB) -lm 
+	$(CC) -O2 -Wall playmus.c -o $@ $(INCLUDE) -DUSE_INLINE_STDARG -LMorphOS/devenv/lib -L/gg/usr/local/lib -lSDL2_mixer $(SDL2_LIB) -lm 
 
 clean:
 	rm -f $(LIBRARY) $(TARGET) $(OBJECTS) $(COREOBJECTS) *.db *.s

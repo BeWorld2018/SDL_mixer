@@ -1,9 +1,10 @@
 # Makefile to build the SDL2_mixer library
 
-CC      = ppc-morphos-gcc-11 -noixemul 
+CC      = ppc-morphos-gcc-9 -noixemul 
 CFLAGS  =  -mcpu=750 -mtune=7450 -O2 $(INCLUDE) -Wall -Wno-pointer-sign -fno-strict-aliasing
 AR	= ppc-morphos-ar
 TARGET = libSDL2_mixer.a
+CVI = /gg/bin/cvinclude.pl
 
 ECHE = echo -e
 BOLD = \033[1m
@@ -32,21 +33,21 @@ lib/$(TARGET): sdl-startup.o ../sdk/fd/sdl2_mixer_lib.fd
 	$(ARCHIVING)
 	@mkdir -p lib
 	@-rm -f $@
-	@cvinclude.pl --fd ../sdk/fd/sdl2_mixer_lib.fd --clib ../sdk/clib/sdl2_mixer_protos.h --gluelib=$@
+	$(CVI) --fd ../sdk/fd/sdl2_mixer_lib.fd --clib ../sdk/clib/sdl2_mixer_protos.h --gluelib=$@
 	@$(AR) crus $@ sdl-startup.o
 
 lib/libb32/$(TARGET): sdl-startup-brel.o  ../sdk/fd/sdl2_mixer_lib.fd
 	$(ARCHIVING)
 	@mkdir -p lib/libb32
 	@-rm -f $@
-	@cvinclude.pl --fd ../sdk/fd/sdl2_mixer_lib.fd --clib ../sdk/clib/sdl2_mixer_protos.h --brelgluelib=$@
+	$(CVI) --fd ../sdk/fd/sdl2_mixer_lib.fd --clib ../sdk/clib/sdl2_mixer_protos.h --brelgluelib=$@
 	@$(AR) crus $@ sdl-startup-brel.o
 
 lib/libb32/libSDL2_mixer-nc.a: sdl-startup-brel-nc.o ../sdk/fd/sdl2_mixer_lib.fd
 	$(ARCHIVING)
 	@mkdir -p lib/libb32
 	@-rm -f $@
-	@cvinclude.pl --fd ../sdk/fd/sdl2_mixer_lib.fd --clib ../sdk/clib/sdl2_mixer_protos.h --brelgluelib=$@
+	$(CVI) --fd ../sdk/fd/sdl2_mixer_lib.fd --clib ../sdk/clib/sdl2_mixer_protos.h --brelgluelib=$@
 	@$(AR) crus $@ sdl-startup-brel-nc.o
 
 clean:
