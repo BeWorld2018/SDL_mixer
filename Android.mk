@@ -31,7 +31,7 @@ SUPPORT_WAVPACK ?= true
 WAVPACK_LIBRARY_PATH := external/wavpack
 
 # Enable this if you want to support loading music via libgme
-SUPPORT_GME ?= true
+SUPPORT_GME ?= false
 GME_LIBRARY_PATH := external/libgme
 
 # Enable this if you want to support loading MOD music via XMP-lite
@@ -92,7 +92,6 @@ LOCAL_C_INCLUDES :=                                     \
     $(LOCAL_PATH)/src/                                  \
     $(LOCAL_PATH)/src/codecs                            \
 
-
 LOCAL_SRC_FILES :=                                      \
     $(subst $(LOCAL_PATH)/,,                            \
     $(wildcard $(LOCAL_PATH)/src/*.c)                   \
@@ -135,7 +134,7 @@ endif
 
 # This needs to be a shared library to comply with the LGPL license
 ifeq ($(SUPPORT_MP3_MPG123),true)
-    LOCAL_C_INCLUDES += $(LOCAL_PATH)/$(MPG123_LIBRARY_PATH)/android
+    LOCAL_C_INCLUDES += $(LOCAL_PATH)/$(MPG123_LIBRARY_PATH)/src/include
     LOCAL_CFLAGS += -DMUSIC_MP3_MPG123
     LOCAL_SHARED_LIBRARIES += mpg123
 endif
