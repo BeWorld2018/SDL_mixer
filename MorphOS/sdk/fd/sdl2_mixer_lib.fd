@@ -97,4 +97,8 @@ Mix_LoadWAV(file)(sysv,r12base)
 Mix_PlayChannel(channel,chunk,loops)(sysv,r12base)
 Mix_FadeInChannel(channel,chunk,loops,ms)(sysv,r12base)
 Mix_HasMusicDecoder(a)(sysv,r12base)
+* 53.8
+Mix_PauseAudio(pause_on)(sysv,r12base)
+Mix_StartTrack(music,track)(sysv,r12base)
+Mix_GetNumTracks(music)(sysv,r12base)
 ##end

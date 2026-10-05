@@ -34,22 +34,45 @@
 #include OGG_HEADER
 #elif defined(OGG_USE_TREMOR)
 #include <tremor/ivorbisfile.h>
-#else
-#if defined(__MORPHOS__)
+#elif defined(__MORPHOS__) && defined(USE_VORBISLIB)
+/* vorbisfile.library (opened per opener in AMIGA_Startup). The calls go
+   through the SDK inlines, wrapped in real functions so they can be stored
+   in the vorbis_loader table below. Its callbacks take a pointer to
+   ov_callbacks instead of the struct. */
+#include <proto/vorbisfile.h>
 
-#if defined(USE_VORBISLIB)
-	#include <proto/exec.h>
-	#include <libraries/vorbisfile.h>
-	extern struct Library *VorbisFileBase;
-#else
-	#if defined(OGG_USE_TREMOR)
-		#include <tremor/ivorbisfile.h>
-	#else
-		#include <vorbis/vorbisfile.h>
-	#endif
-#endif
+static int MOS_ov_clear(OggVorbis_File *vf) { return ov_clear(vf); }
+static vorbis_info *MOS_ov_info(OggVorbis_File *vf, int link) { return ov_info(vf, link); }
+static vorbis_comment *MOS_ov_comment(OggVorbis_File *vf, int link) { return ov_comment(vf, link); }
+static int MOS_ov_open_callbacks(void *datasource, OggVorbis_File *vf, const char *initial, long ibytes, ov_callbacks *callbacks)
+{
+    return ov_open_callbacks(datasource, vf, (char *)initial, ibytes, callbacks);
+}
+static ogg_int64_t MOS_ov_pcm_total(OggVorbis_File *vf, int i) { return ov_pcm_total(vf, i); }
+static long MOS_ov_read(OggVorbis_File *vf, char *buffer, int length, int bigendianp, int word, int sgned, int *bitstream)
+{
+    return ov_read(vf, buffer, length, bigendianp, word, sgned, bitstream);
+}
+static int MOS_ov_time_seek(OggVorbis_File *vf, double pos) { return ov_time_seek(vf, pos); }
+static double MOS_ov_time_tell(OggVorbis_File *vf) { return ov_time_tell(vf); }
+static double MOS_ov_time_total(OggVorbis_File *vf, int i) { return ov_time_total(vf, i); }
+static int MOS_ov_pcm_seek(OggVorbis_File *vf, ogg_int64_t pos) { return ov_pcm_seek(vf, pos); }
+static ogg_int64_t MOS_ov_pcm_tell(OggVorbis_File *vf) { return ov_pcm_tell(vf); }
 
-#endif
+/* The inline macros would otherwise expand in the vorbis.ov_xxx() calls */
+#undef ov_clear
+#undef ov_info
+#undef ov_comment
+#undef ov_open_callbacks
+#undef ov_pcm_total
+#undef ov_read
+#undef ov_time_seek
+#undef ov_time_tell
+#undef ov_time_total
+#undef ov_pcm_seek
+#undef ov_pcm_tell
+#else
+#include <vorbis/vorbisfile.h>
 #endif
 
 
@@ -106,22 +129,23 @@ static int OGG_Load(void)
         }
 #endif
 #if defined(__MORPHOS__) && defined(USE_VORBISLIB)
-		if (VorbisFileBase == NULL)
-			return -1;
+        if (VorbisFileBase == NULL) {
+            Mix_SetError("vorbisfile.library is not available");
+            return -1;
+        }
 
-		vorbis.ov_clear = *(void**)((long)(VorbisFileBase) - 28);
-		vorbis.ov_info = *(void**)((long)(VorbisFileBase) - 154);
-		vorbis.ov_open_callbacks = *(void**)((long)(VorbisFileBase) - 40);
-		vorbis.ov_pcm_total = *(void**)((long)(VorbisFileBase) - 94);
-		vorbis.ov_read = *(void**)((long)(VorbisFileBase) - 166);
-		vorbis.ov_time_seek = *(void**)((long)(VorbisFileBase) - 604);
-	    vorbis.ov_comment = *(void**)((long)(VorbisFileBase) - 160);
-	    vorbis.ov_pcm_seek = *(void**)((long)(VorbisFileBase) - 118);
-	    vorbis.ov_time_tell = *(void**)((long)(VorbisFileBase) - 142);
-		vorbis.ov_pcm_tell = *(void**)((long)(VorbisFileBase) - 148);
-		vorbis.ov_time_total = *(void**)((long)(VorbisFileBase) - 100);
-
-		#else
+        vorbis.ov_clear = MOS_ov_clear;
+        vorbis.ov_info = MOS_ov_info;
+        vorbis.ov_comment = MOS_ov_comment;
+        vorbis.ov_open_callbacks = MOS_ov_open_callbacks;
+        vorbis.ov_pcm_total = MOS_ov_pcm_total;
+        vorbis.ov_read = MOS_ov_read;
+        vorbis.ov_time_seek = MOS_ov_time_seek;
+        vorbis.ov_time_tell = MOS_ov_time_tell;
+        vorbis.ov_time_total = MOS_ov_time_total;
+        vorbis.ov_pcm_seek = MOS_ov_pcm_seek;
+        vorbis.ov_pcm_tell = MOS_ov_pcm_tell;
+#else
         FUNCTION_LOADER(ov_clear, int (*)(OggVorbis_File *))
         FUNCTION_LOADER(ov_info, vorbis_info *(*)(OggVorbis_File *,int))
         FUNCTION_LOADER(ov_comment, vorbis_comment *(*)(OggVorbis_File *,int))

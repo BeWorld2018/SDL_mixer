@@ -7,7 +7,6 @@
 #include <exec/resident.h>
 #include <exec/system.h>
 #include <proto/exec.h>
-#include <proto/vorbisfile.h>
 
 #include "MIX_version.h"
 #include "MIX_library.h"
@@ -19,7 +18,6 @@ STATIC CONST TEXT libname[] = "sdl2_mixer.library";
 struct ExecBase   *SysBase  = NULL;
 struct DosLibrary *DOSBase  = NULL;
 struct Library    *SDL2Base = NULL;
-//struct Library    *VorbisFileBase = NULL;
 struct Library    *SDL2MixerBase = NULL;
 
 /**********************************************************************
@@ -126,13 +124,6 @@ static BPTR DeleteLib(struct SDL2MixerLibrary *LibBase, struct ExecBase *SysBase
 
 static void UserLibClose(struct SDL2MixerLibrary *LibBase, struct ExecBase *SysBase)
 {
-	//CloseLibrary(SDL2Base);
-	//if (VorbisFileBase)
-    //	CloseLibrary(VorbisFileBase);
-
-	//SDL2Base = NULL;
-	//VorbisFileBase = NULL;
-
 }
 
 /**********************************************************************

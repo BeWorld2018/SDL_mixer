@@ -123,4 +123,8 @@
 	STUB(Mix_PlayChannel)
 	STUB(Mix_FadeInChannel)
 	STUB(Mix_HasMusicDecoder)
+	/* 53.8 */
+	STUB(Mix_PauseAudio)
+	STUB(Mix_StartTrack)
+	STUB(Mix_GetNumTracks)
 	

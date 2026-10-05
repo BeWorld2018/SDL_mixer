@@ -108,6 +108,9 @@ Mix_Chunk * Mix_LoadWAV(const char *file);
 int Mix_PlayChannel(int channel, Mix_Chunk *chunk, int loops);
 int Mix_FadeInChannel(int channel, Mix_Chunk *chunk, int loops, int ms);
 SDL_bool Mix_HasMusicDecoder(const char *name);
+void Mix_PauseAudio(int pause_on);
+int Mix_StartTrack(Mix_Music *music, int track);
+int Mix_GetNumTracks(Mix_Music *music);
 #ifdef __cplusplus
 }
 #endif

@@ -12,7 +12,7 @@
 USE_WAV=1
 USE_OGG=1
 USE_TREMOR=0
-USE_STBVORBIS=1
+USE_STBVORBIS=0
 USE_FLAC=0
 USE_DRFLAC=1
 USE_OPUS=1
@@ -30,7 +30,7 @@ CC  = ppc-morphos-gcc-9 -noixemul
 AR	= ppc-morphos-ar
 
 INCLUDE =  -IMorphOS/sdk -I./include -I./src/ -I./src/codecs -I/gg/usr/local/include/SDL2 -I. -I/gg/usr/local/include 
-CFLAGS  =  -mresident32 -O3 -mcpu=750 -mtune=7450 -Wno-pointer-sign -fno-strict-aliasing -Wall -ffast-math -DHAVE_SNPRINTF -DHAVE_UNISTD_H -DHAVE_SETBUF -DHAVE_FORK
+CFLAGS  =  -mresident32 -O3 -mcpu=750 -mtune=7450 -Wno-pointer-sign -fno-strict-aliasing -Wall
 LIBS += -L/gg/usr/local/lib
 SDL2_LIB = -lSDL2 -lGL
 
@@ -47,9 +47,7 @@ ifeq ($(USE_TREMOR),1)
 CFLAGS+= -DOGG_USE_TREMOR
 LIBS += -lvorbisidec
 else
-# -D__MORPHOS_SHAREDLIBS
-CFLAGS+= -DUSE_VORBISLIB 
-LIBS += -lvorbisfile -lvorbis -logg
+CFLAGS+= -DUSE_VORBISLIB
 endif
 endif
 endif
@@ -193,6 +191,8 @@ install: $(LIBRARY)
 MorphOS/MIX_library.o: MorphOS/MIX_library.c MorphOS/MIX_library.h MorphOS/MIX_stubs.h
 	$(COMPILING)
 	$(CC) -mcpu=750 $(INCLUDE) -Wall -fno-strict-aliasing -D__AMIGADATE__=\"$(AMIGADATE)\" -DAROS_ALMOST_COMPATIBLE -o $@ -c $*.c
+
+MorphOS/MIX_stubs.o: MorphOS/MIX_stubs.h
 
 src/music.o: src/music.c
 	$(CC) $(CFLAGS) -O0 -o $@ -c $^

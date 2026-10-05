@@ -801,4 +801,29 @@
 		(((SDL_bool (*)(const char *))*(void**)(__base - 586))(__t__p0));\
 	})
 
+#define Mix_PauseAudio(__p0) \
+	({ \
+		int  __t__p0 = __p0;\
+		long __base = (long)(SDL2_MIXER_BASE_NAME);\
+		__asm volatile("mr 12,%0": :"r"(__base):"r12");\
+		(((void (*)(int ))*(void**)(__base - 592))(__t__p0));\
+	})
+
+#define Mix_StartTrack(__p0, __p1) \
+	({ \
+		Mix_Music * __t__p0 = __p0;\
+		int  __t__p1 = __p1;\
+		long __base = (long)(SDL2_MIXER_BASE_NAME);\
+		__asm volatile("mr 12,%0": :"r"(__base):"r12");\
+		(((int (*)(Mix_Music *, int ))*(void**)(__base - 598))(__t__p0, __t__p1));\
+	})
+
+#define Mix_GetNumTracks(__p0) \
+	({ \
+		Mix_Music * __t__p0 = __p0;\
+		long __base = (long)(SDL2_MIXER_BASE_NAME);\
+		__asm volatile("mr 12,%0": :"r"(__base):"r12");\
+		(((int (*)(Mix_Music *))*(void**)(__base - 604))(__t__p0));\
+	})
+
 #endif /* !_PPCINLINE_SDL2_MIXER_H */

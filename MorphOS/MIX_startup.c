@@ -12,6 +12,12 @@
 extern struct Library    *SDL2Base;
 extern struct Library    *SDL2MixerBase;
 
+#ifdef USE_VORBISLIB
+/* Used by src/codecs/music_ogg.c. Optional: if it is missing, only Ogg
+   Vorbis fails to load. */
+struct Library *VorbisFileBase;
+#endif
+
 int ThisRequiresConstructorHandling = 0;
 
 /* This function must preserve all registers except r13 */
@@ -40,6 +46,10 @@ int SAVEDS AMIGA_Startup(struct SDL2MixerLibrary *LibBase)
 	if ((SDL2Base = OpenLibrary("sdl2.library", 53)) == NULL)
 		return 0;
 
+#ifdef USE_VORBISLIB
+	VorbisFileBase = OpenLibrary("vorbisfile.library", 0);
+#endif
+
 	return 1;
 }
 
@@ -65,6 +75,12 @@ VOID SAVEDS AMIGA_Cleanup(struct SDL2MixerLibrary *LibBase)
 
 		//kprintf("SDL_mixer/UnInit: audio mixer stuff closed\n");
 	}
+#endif
+
+#ifdef USE_VORBISLIB
+	/* After Mix_CloseAudio(): the audio thread no longer decodes */
+	CloseLibrary(VorbisFileBase);
+	VorbisFileBase = NULL;
 #endif
 
 	CloseLibrary(SDL2Base);
