@@ -18,9 +18,11 @@
 #define is_dirsep(c) ((c) == '/' || (c) == '\\')
 #define is_abspath(p) ((p)[0] == '/' || (p)[0] == '\\' || ((p)[0] && (p)[1] == ':'))
 #elif __MORPHOS__
-#define CHAR_DIRSEP '\\'
-#define is_dirsep(c) ((c) == '/' )
-#define is_abspath(p) ((p)[0] == '/' || ((p)[0] && (p)[1] == ':'))
+/* AmigaDOS paths: "dir/file", "VOLUME:file". Any name with a volume or
+   assign ("LIBS:...") is absolute; a leading '/' means the parent dir. */
+#define CHAR_DIRSEP '/'
+#define is_dirsep(c) ((c) == '/' || (c) == ':')
+#define is_abspath(p) (SDL_strchr((p), ':') != NULL)
 #else /* unix: */
 #define CHAR_DIRSEP '/'
 #define is_dirsep(c) ((c) == '/')

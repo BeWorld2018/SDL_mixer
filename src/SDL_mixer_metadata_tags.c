@@ -372,6 +372,9 @@ static size_t id3v22_parse_frame(SDL_PropertiesID props, SDL_IOStream *io, Uint8
     }
     SDL_SeekIO(io, frame_begin + (Sint64)size + ID3v2_2_FRAME_HEADER_SIZE, SDL_IO_SEEK_SET);
 
+#ifdef __MORPHOS__
+    buffer[read_size] = '\0';  // the string handlers rely on it, as for v2.3+ below
+#endif
     handle_id3v2x2_string(props, key, buffer, read_size);
 
     return size + ID3v2_2_FRAME_HEADER_SIZE; // data size + size of the header
@@ -574,7 +577,12 @@ static Uint32 ape_handle_tag(SDL_PropertiesID props, Uint8 *data, size_t valsize
 
     const Uint32 key_len = (Uint32)(value - key);
 
+#ifdef __MORPHOS__
+    // the value starts after the 4 flag bytes and the key: value[valsize] must stay in data[APE_BUFFER_SIZE]
+    if (valsize > (APE_BUFFER_SIZE - APE_FRAME_TAG_KEY - key_len)) {
+#else
     if (valsize > (APE_BUFFER_SIZE - key_len)) {
+#endif
         // maybe it's a list? convert embedded null chars to newlines. Note this will mess up binary data, but the APE spec doesn't currently list any binary keys.
         for (size_t i = 0; i < APE_BUFFER_SIZE; i++) {
             if (data[i] == '\0') {
@@ -985,7 +993,14 @@ static int probe_apetag(SDL_PropertiesID props, SDL_IOStream *io, Uint8 *buf, MI
                 retval = TAG_FOUND;
             }
         }
+#ifdef __MORPHOS__
+        // only a verified tag, and a size that fits: len comes from the file (signed)
+        if ((retval == TAG_FOUND) && (len > 0) && (len <= clamp->length)) {
+            clamp->length -= len;
+        }
+#else
         clamp->length -= len;
+#endif
     }
 
     return retval;
@@ -1065,7 +1080,11 @@ static void ParseTrackNumString(const char *str, Sint64 *track, Sint64 *total_tr
 
     if ((*track > 0) && (totalstr != NULL)) {
         endp = NULL;
+#ifdef __MORPHOS__
+        ivalue = (Sint64) SDL_strtoll(totalstr, &endp, 10);  // "3/12": the total, not the track again
+#else
         ivalue = (Sint64) SDL_strtoll(trackstr, &endp, 10);
+#endif
         if ((*totalstr != '\0') && (*endp == '\0')) {  // if true, entire string was a valid number.
             if (ivalue >= 0) {  // reject negative numbers, though.
                 *total_tracks = ivalue;

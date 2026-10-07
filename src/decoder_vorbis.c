@@ -26,7 +26,53 @@
 #include "SDL_mixer_internal.h"
 
 #define OV_EXCLUDE_STATIC_CALLBACKS
-#if defined(VORBIS_HEADER)
+#if defined(USE_SHAREDLIB_VORBIS)
+// MorphOS vorbisfile.library, opened per opener (MorphOS/MIX_startup.c) and
+// optional. The SDK inlines are wrapped in real functions for the loader
+// table below; the library takes ov_callbacks by pointer.
+#include <proto/vorbisfile.h>
+
+static int MOS_ov_clear(OggVorbis_File *vf) { return ov_clear(vf); }
+static vorbis_info *MOS_ov_info(OggVorbis_File *vf, int link) { return ov_info(vf, link); }
+static vorbis_comment *MOS_ov_comment(OggVorbis_File *vf, int link) { return ov_comment(vf, link); }
+static int MOS_ov_test_callbacks(void *datasource, OggVorbis_File *vf, const char *initial, long ibytes, ov_callbacks callbacks)
+{
+    return ov_test_callbacks(datasource, vf, (char *) initial, ibytes, &callbacks);
+}
+static int MOS_ov_open_callbacks(void *datasource, OggVorbis_File *vf, const char *initial, long ibytes, ov_callbacks callbacks)
+{
+    return ov_open_callbacks(datasource, vf, (char *) initial, ibytes, &callbacks);
+}
+static ogg_int64_t MOS_ov_pcm_total(OggVorbis_File *vf, int i) { return ov_pcm_total(vf, i); }
+static int MOS_ov_pcm_seek(OggVorbis_File *vf, ogg_int64_t pos) { return ov_pcm_seek(vf, pos); }
+static int MOS_ov_raw_seek(OggVorbis_File *vf, ogg_int64_t pos) { return ov_raw_seek(vf, pos); }
+static ogg_int64_t MOS_ov_pcm_tell(OggVorbis_File *vf) { return ov_pcm_tell(vf); }
+static long MOS_ov_read_float(OggVorbis_File *vf, float ***pcm_channels, int samples, int *bitstream)
+{
+    return ov_read_float(vf, pcm_channels, samples, bitstream);
+}
+
+#undef ov_clear
+#undef ov_info
+#undef ov_comment
+#undef ov_test_callbacks
+#undef ov_open_callbacks
+#undef ov_pcm_total
+#undef ov_pcm_seek
+#undef ov_raw_seek
+#undef ov_pcm_tell
+#undef ov_read_float
+#define ov_clear MOS_ov_clear
+#define ov_info MOS_ov_info
+#define ov_comment MOS_ov_comment
+#define ov_test_callbacks MOS_ov_test_callbacks
+#define ov_open_callbacks MOS_ov_open_callbacks
+#define ov_pcm_total MOS_ov_pcm_total
+#define ov_pcm_seek MOS_ov_pcm_seek
+#define ov_raw_seek MOS_ov_raw_seek
+#define ov_pcm_tell MOS_ov_pcm_tell
+#define ov_read_float MOS_ov_read_float
+#elif defined(VORBIS_HEADER)
 #include VORBIS_HEADER
 #elif defined(VORBIS_USE_TREMOR)
 #include <tremor/ivorbisfile.h>
@@ -93,11 +139,19 @@ typedef struct VORBIS_TrackData
     int current_bitstream;
     Sint64 current_iteration;
     Sint64 current_iteration_frames;
+#ifdef __MORPHOS__
+    bool mos_loop_done;  // the finite loop was played: don't enter it again
+#endif
 } VORBIS_TrackData;
 
 
 static bool SDLCALL VORBIS_init(void)
 {
+#ifdef USE_SHAREDLIB_VORBIS
+    if (!VorbisFileBase) {
+        return SDL_SetError("vorbisfile.library is not available");
+    }
+#endif
     return LoadModule_vorbis();
 }
 
@@ -225,7 +279,11 @@ static bool SDLCALL VORBIS_init_audio(SDL_IOStream *io, SDL_AudioSpec *spec, SDL
     vorbis.ov_clear(&vf);  // done with this instance. Tracks will maintain their own OggVorbis_File object.
 
     if (adata->loop.active) {
+        #ifdef __MORPHOS__
+        *duration_frames = (adata->loop.count < 0) ? MIX_DURATION_INFINITE : (full_length + (adata->loop.len * (adata->loop.count - 1)));
+#else
         *duration_frames = (adata->loop.count < 0) ? MIX_DURATION_INFINITE : (full_length * adata->loop.count);
+#endif
     } else {
         *duration_frames = full_length;
     }
@@ -331,7 +389,13 @@ static bool SDLCALL VORBIS_decode(void *track_userdata, SDL_AudioStream *stream)
     if (bitstream != tdata->current_bitstream) {
         const vorbis_info *vi = vorbis.ov_info(&tdata->vf, -1);
         if (vi) {  // this _shouldn't_ be NULL, but if it is, we're just going on without it and hoping the stream format didn't change.
+#ifdef __MORPHOS__
+            // first link too (current_bitstream -1): the channel map for 6+ channels is set there
+            // (not 3/5: UpdateVorbisStreamFormat bumps them to 6 channels, decode still puts 3/5 planes)
+            if (((tdata->current_bitstream == -1) && (vi->channels >= 6)) || (tdata->current_channels != vi->channels) || (tdata->current_freq != vi->rate)) {
+#else
             if ((tdata->current_channels != vi->channels) || (tdata->current_freq != vi->rate)) {
+#endif
                 const SDL_AudioSpec spec = { VORBIS_AUDIO_FORMAT, vi->channels, vi->rate };
                 tdata->current_channels = vi->channels;
                 tdata->current_freq = vi->rate;
@@ -346,7 +410,11 @@ static bool SDLCALL VORBIS_decode(void *track_userdata, SDL_AudioStream *stream)
     }
 
     const MIX_OggLoop *loop = &tdata->adata->loop;
+#ifdef __MORPHOS__
+    if ((tdata->current_iteration < 0) && !tdata->mos_loop_done) {
+#else
     if (tdata->current_iteration < 0) {
+#endif
         if (loop->active && ((tdata->current_iteration_frames + amount) >= loop->start)) {
             tdata->current_iteration = 0;  // we've hit the start of the loop point.
             tdata->current_iteration_frames = (tdata->current_iteration_frames - loop->start);  // so adding `amount` corrects this later.
@@ -382,6 +450,9 @@ static bool SDLCALL VORBIS_decode(void *track_userdata, SDL_AudioStream *stream)
                 }
             } else {
                 tdata->current_iteration = -1;
+#ifdef __MORPHOS__
+                tdata->mos_loop_done = true;
+#endif
             }
             tdata->current_iteration_frames = 0;
         }
@@ -405,11 +476,18 @@ static bool SDLCALL VORBIS_seek(void *track_userdata, Uint64 frame)
     const MIX_OggLoop *loop = &tdata->adata->loop;
     Sint64 final_iteration = -1;
     Sint64 final_iteration_frames = 0;
+#ifdef __MORPHOS__
+    bool past_loop = false;
+#endif
 
     // frame has hit the loop point?
     if (loop->active && ((Sint64)frame >= loop->start)) {
         // figure out the _actual_ frame in the vorbis file we're aiming for.
+#ifdef __MORPHOS__
+        if ((loop->count < 0) || ((Sint64)frame < (loop->start + (loop->len * loop->count)))) {  // literally in the loop right now.
+#else
         if ((loop->count < 0) || ((Sint64)frame < (loop->len * loop->count))) {  // literally in the loop right now.
+#endif
             frame -= loop->start;  // make logical frame index relative to start of loop.
             final_iteration = (loop->count < 0) ? 0 : (frame / loop->len);  // decide what iteration of the loop we're on (stays at zero for infinite loops).
             frame %= loop->len;  // drop iterations so we're an offset into the loop.
@@ -417,7 +495,12 @@ static bool SDLCALL VORBIS_seek(void *track_userdata, Uint64 frame)
             frame += loop->start;  // convert back into physical frame index.
         } else {  // past the loop point?
             SDL_assert(loop->count > 0);  // can't be infinite loop if we passed it.
+#ifdef __MORPHOS__
+            frame -= loop->len * (loop->count - 1);  // the body is played count times, once is physical
+            past_loop = true;
+#else
             frame -= loop->len * loop->count;  // drop the iterations to get the physical frame index.
+#endif
         }
     }
 
@@ -427,6 +510,12 @@ static bool SDLCALL VORBIS_seek(void *track_userdata, Uint64 frame)
         return SetOggVorbisError("ov_pcm_seek", rc);
     }
 
+#ifdef __MORPHOS__
+    if ((final_iteration < 0) && !past_loop) {
+        final_iteration_frames = (Sint64) frame;  // before the loop: decode counts frames up to loop->start
+    }
+    tdata->mos_loop_done = past_loop;
+#endif
     tdata->current_iteration = final_iteration;
     tdata->current_iteration_frames = final_iteration_frames;
 

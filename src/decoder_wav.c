@@ -309,6 +309,9 @@ static bool MS_ADPCM_Init(ADPCM_DecoderInfo *info, const Uint8 *chunk_data, Uint
     }
     coeffdata->coeff = &coeffdata->aligndummy;
     coeffdata->coeffcount = (Uint16)coeffcount;
+#ifdef __MORPHOS__
+    SDL_free(info->ddata);  // a second fmt chunk
+#endif
     info->ddata = coeffdata;  // Freed in cleanup.
 
     // Copy the 16-bit pairs.
@@ -381,7 +384,11 @@ static bool MS_ADPCM_DecodeBlockHeader(ADPCM_DecoderState *state)
 
         // Load the coefficient pair into the channel state.
         const Uint8 coeffindex = state->block.data[o];
+#ifdef __MORPHOS__
+        if (coeffindex >= ddata->coeffcount) {  // coeff[] has coeffcount pairs
+#else
         if (coeffindex > ddata->coeffcount) {
+#endif
             return SDL_SetError("Invalid MS ADPCM coefficient index in block header");
         }
         cstate[c].coeff1 = ddata->coeff[coeffindex * 2];
@@ -754,7 +761,12 @@ static int FetchXLaw(WAV_TrackData *tdata, Uint8 *buffer, int buflen, const floa
     if (length % tdata->adata->framesize != 0) {
         length -= length % tdata->adata->framesize;
     }
+#ifdef __MORPHOS__
+    // expanded in place from the end: out[i] covers bytes 4i..4i+3, past buffer[i]
+    float *out = (float *) buffer;
+#else
     float *out = (float *) &buffer[(length - 1) * 4];
+#endif
     for (int i = length - 1; i >= 0; i--) {
         out[i] = lut[buffer[i]];
     }
@@ -863,6 +875,12 @@ static bool ParseFMT(WAV_AudioData *adata, SDL_IOStream *io, SDL_AudioSpec *spec
     size_t size = (chunk_length >= sizeof(fmt)) ? sizeof(fmt) : sizeof(fmt.format);
     SDL_zero(fmt);
     SDL_memcpy(&fmt, chunk, size);
+#ifdef __MORPHOS__
+    if ((fmt.format.channels == 0) || (fmt.format.frequency == 0)) {  // divisions by zero below
+        SDL_free(chunk);
+        return SDL_SetError("WAV: no channels or no sample rate");
+    }
+#endif
 
     adata->encoding = SDL_Swap16LE(fmt.format.encoding);
 
@@ -1028,7 +1046,16 @@ static bool ParseSMPL(WAV_AudioData *adata, SDL_IOStream *io, Uint32 chunk_lengt
     }
     chunk = (SamplerChunk *)data;
 
+#ifdef __MORPHOS__
+    // the loop count comes from the file: keep to what the chunk holds
+    Uint32 numloops = 0;
+    if (chunk_length >= offsetof(SamplerChunk, loops)) {
+        numloops = SDL_min(SDL_Swap32LE(chunk->sample_loops), (Uint32) ((chunk_length - offsetof(SamplerChunk, loops)) / sizeof (SampleLoop)));
+    }
+    for (i = 0; i < numloops; ++i) {
+#else
     for (i = 0; i < SDL_Swap32LE(chunk->sample_loops); ++i) {
+#endif
         const Uint32 LOOP_TYPE_FORWARD = 0;
         const Uint32 loop_type = SDL_Swap32LE(chunk->loops[i].type);
         if (loop_type == LOOP_TYPE_FORWARD) {
@@ -1068,10 +1095,20 @@ static bool CheckWAVMetadataField(const char *wantedtag, const char *propname, S
 
     *i += 4;
 
+#ifdef __MORPHOS__
+    if (*i + 4 > chunk_length) {
+        *i -= 4;  // no room for the length field
+        return false;
+    }
+#endif
     const Uint32 len = Swap32LEUnaligned(data + *i);
     char *field = NULL;
 
+#ifdef __MORPHOS__
+    if (len > chunk_length - (*i + 4)) {  // the field must fit in the rest of the chunk
+#else
     if (len > chunk_length) {
+#endif
         *i -= 4;  // move back so we can resync.
         return false; // Do nothing due to broken length
     }
@@ -1081,7 +1118,11 @@ static bool CheckWAVMetadataField(const char *wantedtag, const char *propname, S
         *i += len;
         return true;
     }
+#ifdef __MORPHOS__
+    SDL_memcpy(field, data + *i, len);  // not NUL-terminated in the file: no strlen past the chunk
+#else
     SDL_strlcpy(field, (char *)(data + *i), len);
+#endif
     *i += len;
 
     char key[64];
@@ -1107,7 +1148,11 @@ static bool ParseLIST(WAV_AudioData *adata, SDL_IOStream *io, SDL_PropertiesID p
         return SDL_SetError("Couldn't read %" SDL_PRIu32 " bytes from WAV file", chunk_length);
     }
 
+#ifdef __MORPHOS__
+    if ((chunk_length >= 8) && (SDL_strncmp((const char *)data, "INFO", 4) == 0)) {
+#else
     if (SDL_strncmp((const char *)data, "INFO", 4) == 0) {
+#endif
         for (size_t i = 4; i < chunk_length - 4;) {
             if (CheckWAVMetadataField("INAM", MIX_PROP_METADATA_TITLE_STRING, props, &i, chunk_length, data)) {
                 continue;
@@ -1149,9 +1194,51 @@ static void CalcSeekBlockSeek(const WAV_AudioData *adata, Uint32 actual_frame, W
     }
 }
 
+#ifdef __MORPHOS__
+// The smpl loops come from the file: keep them sorted, non-overlapping and
+// inside the audio data, or the seek blocks below get negative sizes (and a
+// negative read size later).
+static void SanitizeLoops(WAV_AudioData *adata)
+{
+    const Sint64 all_bytes_in_file = adata->stop - adata->start;
+    Sint64 all_frames_in_file;
+    if (IsADPCM(adata->encoding)) {
+        all_frames_in_file = (all_bytes_in_file / adata->adpcm_info.blocksize) * adata->adpcm_info.samplesperblock;
+    } else {
+        all_frames_in_file = all_bytes_in_file / adata->framesize;
+    }
+
+    for (unsigned int i = 1; i < adata->numloops; i++) {  // insertion sort by start
+        const WAVLoopPoint loop = adata->loops[i];
+        unsigned int j = i;
+        while ((j > 0) && (adata->loops[j - 1].start > loop.start)) {
+            adata->loops[j] = adata->loops[j - 1];
+            j--;
+        }
+        adata->loops[j] = loop;
+    }
+
+    unsigned int kept = 0;
+    for (unsigned int i = 0; i < adata->numloops; i++) {
+        const WAVLoopPoint *loop = &adata->loops[i];
+        if ((Sint64) loop->stop > all_frames_in_file) {
+            continue;  // past the end of the data
+        } else if ((kept > 0) && (loop->start < adata->loops[kept - 1].stop)) {
+            continue;  // overlaps the previous loop
+        }
+        adata->loops[kept++] = *loop;
+    }
+    adata->numloops = kept;
+}
+#endif
+
 static bool BuildSeekBlocks(WAV_AudioData *adata)
 {
     const Sint64 all_bytes_in_file = adata->stop - adata->start;
+
+#ifdef __MORPHOS__
+    SanitizeLoops(adata);
+#endif
 
     const unsigned int numloops = adata->numloops;
     if (numloops == 0) {

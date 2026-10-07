@@ -23,6 +23,9 @@
 
 #include "SDL_mixer_internal.h"
 
+// sdl3_mixer.library: callbacks handed to SDL reload our r13 (see SDL_mixer_internal.h)
+MIX_MOS_RESTORE_R13
+
 // !!! FIXME: should RAW go first (only needs to check if it was explicitly
 // !!! FIXME: requested), and SINEWAVE last (must be requested, likely rare).
 static const MIX_Decoder *decoders[] = {
@@ -186,7 +189,7 @@ static bool SetTrackOutputStreamFormat(MIX_Track *track, const SDL_AudioSpec *sp
 }
 
 // catch events to see if output device format has changed. This can let us move to/from surround sound support on the fly, not to mention spend less time doing unnecessary conversions.
-static bool SDLCALL AudioDeviceChangeEventWatcher(void *userdata, SDL_Event *event)
+static bool MIX_MOS_SAVEDS SDLCALL AudioDeviceChangeEventWatcher(void *userdata, SDL_Event *event)
 {
     MIX_Mixer *mixer = (MIX_Mixer *) userdata;
     if (event->type != SDL_EVENT_AUDIO_DEVICE_FORMAT_CHANGED) {
@@ -330,7 +333,7 @@ static int FillSilenceFrames(MIX_Track *track, void *buffer, int channels, int b
 // We generate more audio here on-demand, either from a decoder, or pulling
 // from another audio stream.
 // track->output_stream is locked when calling this.
-static void SDLCALL TrackGetCallback(void *userdata, SDL_AudioStream *stream, int additional_amount, int total_amount)
+static void MIX_MOS_SAVEDS SDLCALL TrackGetCallback(void *userdata, SDL_AudioStream *stream, int additional_amount, int total_amount)
 {
     MIX_Track *track = (MIX_Track *) userdata;
     SDL_assert(stream == track->output_stream);
@@ -503,6 +506,25 @@ static void MixSpatializedFloat32Audio(float *dst, const float *src, const int s
     }
 }
 
+#ifdef __MORPHOS__
+// speakers: both 0 on a mono mixer (dst[1] would be the next frame, and one
+// float past the buffer on the last one)
+static void MixForcedStereoFloat32Audio(float *dst, const float *src, const int sample_frames, const int output_channels, const float *panning, const int *speakers, const float gain)
+{
+    const float panning0 = panning[0] * gain;
+    const float panning1 = panning[1] * gain;
+    const int speaker0 = speakers[0];
+    const int speaker1 = speakers[1];
+
+    if ((panning0 == 0.0f) && (panning1 == 0.0f)) {
+        return;  // don't mix silence.
+    }
+    for (int i = 0; i < sample_frames; i++, dst += output_channels, src += 2) {
+        dst[speaker0] += src[0] * panning0;
+        dst[speaker1] += src[1] * panning1;
+    }
+}
+#else
 static void MixForcedStereoFloat32Audio(float *dst, const float *src, const int sample_frames, const int output_channels, const float *panning, const float gain)
 {
     const float panning0 = panning[0] * gain;
@@ -524,6 +546,7 @@ static void MixForcedStereoFloat32Audio(float *dst, const float *src, const int 
         }
     }
 }
+#endif
 
 static void MixFloat32Audio(float *dst, const float *src, const int buffer_size, const float gain)
 {
@@ -535,7 +558,7 @@ static void MixFloat32Audio(float *dst, const float *src, const int buffer_size,
 }
 
 // SDL calls this function from the audio device thread as more data is needed the mixer.
-static void SDLCALL MixerCallback(void *userdata, SDL_AudioStream *stream, int additional_amount, int total_amount)
+static void MIX_MOS_SAVEDS SDLCALL MixerCallback(void *userdata, SDL_AudioStream *stream, int additional_amount, int total_amount)
 {
     MIX_Mixer *mixer = (MIX_Mixer *) userdata;
     mixer->actual_mixed_bytes = 0;
@@ -553,7 +576,14 @@ static void SDLCALL MixerCallback(void *userdata, SDL_AudioStream *stream, int a
     // do we need to grow our buffer?
     const bool skip_group_mixing = !mixer->all_groups || !mixer->all_groups->next;
     const int alloc_multiplier = skip_group_mixing ? 2 : 3;
+#ifdef __MORPHOS__
+    // getbuf receives the tracks' output: stereo (MIX_SetTrackStereo) is twice
+    // the mixer's frame size on a mono mixer.
+    const int getbuf_size = (mixer->spec.channels < 2) ? (additional_amount * 2) : additional_amount;
+    const int alloc_size = getbuf_size + (additional_amount * (alloc_multiplier - 1));
+#else
     const int alloc_size = additional_amount * alloc_multiplier;
+#endif
     if ((unsigned)alloc_size > mixer->mix_buffer_allocation) {
         void *ptr = SDL_realloc(mixer->mix_buffer, alloc_size);
         if (!ptr) {   // uhoh.
@@ -564,7 +594,11 @@ static void SDLCALL MixerCallback(void *userdata, SDL_AudioStream *stream, int a
     }
 
     float *getbuf = mixer->mix_buffer;
+#ifdef __MORPHOS__
+    float *final_mixbuf = getbuf + (getbuf_size / sizeof (float));
+#else
     float *final_mixbuf = getbuf + (additional_amount / sizeof (float));
+#endif
     float *group_mixbuf = skip_group_mixing ? final_mixbuf : (final_mixbuf + (additional_amount / sizeof (float)));
 
     SDL_memset(final_mixbuf, '\0', additional_amount);
@@ -606,7 +640,11 @@ static void SDLCALL MixerCallback(void *userdata, SDL_AudioStream *stream, int a
 
                     case MIX_SPATIALIZATION_STEREO:
                         SDL_assert(track->output_spec.channels == 2);
+                        #ifdef __MORPHOS__
+                        MixForcedStereoFloat32Audio(group_mixbuf, getbuf, br / (sizeof (float) * 2), mixer->spec.channels, track->spatialization_panning, track->spatialization_speakers, mixer->gain);
+#else
                         MixForcedStereoFloat32Audio(group_mixbuf, getbuf, br / (sizeof (float) * 2), mixer->spec.channels, track->spatialization_panning, mixer->gain);
+#endif
                         group_bytes = SDL_max(group_bytes, (br / 2) * mixer->spec.channels);
                         break;
 
@@ -748,6 +786,33 @@ void MIX_Quit(void)
     mixer_initialized = 0;
 }
 
+#ifdef BUILD_SDL3_MIXER_LIBRARY
+// sdl3_mixer.library, opener closing: release whatever the application left
+void MIX_MOS_QuitAll(void)
+{
+    if (mixer_initialized <= 0) {
+        return;
+    }
+
+    if (!SDL_WasInit(SDL_INIT_AUDIO)) {
+        // The application already quit SDL (or its audio): SDL destroyed every
+        // audio stream the mixers, tracks and decoders still point to. Don't
+        // touch them, their memory goes away with this opener anyway.
+        all_mixers = NULL;
+        all_audiodecoders = NULL;
+        all_audios = NULL;
+        QuitDecoders();
+        SDL_DestroyMutex(global_lock);
+        global_lock = NULL;
+        mixer_initialized = 0;
+        return;
+    }
+
+    mixer_initialized = 1;
+    MIX_Quit();
+}
+#endif
+
 int MIX_GetNumAudioDecoders(void)
 {
     return CheckInitialized() ? num_available_decoders : -1;
@@ -776,6 +841,7 @@ static MIX_Mixer *CreateMixer(SDL_AudioStream *stream)
     if (!mixer) {
         goto failed;
     }
+    MIX_MOS_STASH_R13(mixer);
 
     SDL_AudioSpec output_spec;
     if (!SDL_GetAudioStreamFormat(stream, &mixer->spec, &output_spec)) {
@@ -829,6 +895,9 @@ failed:
     if (mixer) {
         if (mixer->default_group) { MIX_DestroyGroup(mixer->default_group); }
         if (mixer->track_tags) { SDL_DestroyProperties(mixer->track_tags); }
+#ifdef __MORPHOS__
+        if (mixer->props) { SDL_DestroyProperties(mixer->props); }
+#endif
         SDL_free(mixer);
     }
     return NULL;
@@ -1435,17 +1504,26 @@ MIX_Track *MIX_CreateTrack(MIX_Mixer *mixer)
         return NULL;
     }
     SDL_zerop(track);
+    MIX_MOS_STASH_R13(track);
 
     track->tags = SDL_CreateProperties();
     if (!track->tags) {
+#ifdef __MORPHOS__
+        SDL_aligned_free(track);  // SDL_aligned_alloc()ed
+#else
         SDL_free(track);
+#endif
         return NULL;
     }
 
     track->output_stream = SDL_CreateAudioStream(&mixer->spec, &mixer->spec);
     if (!track->output_stream) {
         SDL_DestroyProperties(track->tags);
+#ifdef __MORPHOS__
+        SDL_aligned_free(track);
+#else
         SDL_free(track);
+#endif
         return NULL;
     }
 
@@ -1492,7 +1570,7 @@ static void RemoveTrackFromMixerTagList(MIX_Mixer *mixer, MIX_Track *track, cons
 }
 
 // this is an enumerator; call it multiple times to _actually_ remove from all tag lists.
-static void SDLCALL RemoveTrackFromAllMixerTagLists(void *userdata, SDL_PropertiesID props, const char *tag)
+static void MIX_MOS_SAVEDS SDLCALL RemoveTrackFromAllMixerTagLists(void *userdata, SDL_PropertiesID props, const char *tag)
 {
     // this only removes the track from the mixer's tag lists, as we're
     //  enumerating track->tags and don't want the hash to change during that.
@@ -1646,6 +1724,9 @@ static bool MIX_SetTrackAudio_internal(MIX_Track *track, MIX_Audio *audio, SDL_I
             SDL_IOStream *clampio = MIX_OpenIoClamp(&track->ioclamp, io);
             if (!clampio) {
                 retval = false;
+#ifdef __MORPHOS__
+                SDL_zero(track->ioclamp);  // no clamp: a later change must not close io as one
+#endif
             } else {
                 io = clampio;
                 track->ioclamp.start = audio->clamp_offset;
@@ -1659,6 +1740,9 @@ static bool MIX_SetTrackAudio_internal(MIX_Track *track, MIX_Audio *audio, SDL_I
                 if (track->ioclamp.io) {
                     SDL_CloseIO(io);  // this was the IoClamp, not the real data stream.
                     io = origio;
+#ifdef __MORPHOS__
+                    SDL_zero(track->ioclamp);  // the clamp is gone
+#endif
                 }
             } else {
                 RefAudio(audio);
@@ -1816,7 +1900,15 @@ bool MIX_SetTrackRawIOStream(MIX_Track *track, SDL_IOStream *io, const SDL_Audio
     return retval;
 }
 
-static void SDLCALL CleanupTagList(void *userdata, void *value)
+#ifdef BUILD_SDL3_MIXER_LIBRARY
+// userdata of CleanupTagList: our r13, stashed in CreateTagList
+static struct { MIX_MOS_R13_FIELD } cleanup_taglist_r13;
+#define CLEANUP_TAGLIST_USERDATA ((void *) &cleanup_taglist_r13)
+#else
+#define CLEANUP_TAGLIST_USERDATA NULL
+#endif
+
+static void MIX_MOS_SAVEDS SDLCALL CleanupTagList(void *userdata, void *value)
 {
     MIX_TagList *list = (MIX_TagList *) value;
     SDL_DestroyRWLock(list->rwlock);
@@ -1849,10 +1941,15 @@ static MIX_TagList *CreateTagList(MIX_Mixer *mixer, const char *tag)
             }
         }
 
-        if (list && !SDL_SetPointerPropertyWithCleanup(track_tags, tag, list, CleanupTagList, NULL)) {
+#ifdef BUILD_SDL3_MIXER_LIBRARY
+        MIX_MOS_STASH_R13(&cleanup_taglist_r13);
+#endif
+        if (list && !SDL_SetPointerPropertyWithCleanup(track_tags, tag, list, CleanupTagList, CLEANUP_TAGLIST_USERDATA)) {
+#ifndef __MORPHOS__  // on failure SDL_SetPointerPropertyWithCleanup() already called CleanupTagList()
             SDL_DestroyRWLock(list->rwlock);
             SDL_free(list->tracks);
             SDL_free(list);
+#endif
             list = NULL;
         }
     }
@@ -1936,13 +2033,14 @@ void MIX_UntagTrack(MIX_Track *track, const char *tag)
 
 typedef struct GetTrackTagsCallbackData
 {
+    MIX_MOS_R13_FIELD  // first: GetTrackTagsCallback reloads r13 from it
     const char *struct_tags[4];  // hopefully mostly fits in here, no allocations.
     const char **allocated_tags;
     int count;
     bool failed;
 } GetTrackTagsCallbackData;
 
-static void SDLCALL GetTrackTagsCallback(void *userdata, SDL_PropertiesID props, const char *tag)
+static void MIX_MOS_SAVEDS SDLCALL GetTrackTagsCallback(void *userdata, SDL_PropertiesID props, const char *tag)
 {
     // just store the tag to the array; since we have the properties locked, we can copy it after enumeration is done.
     GetTrackTagsCallbackData *data = (GetTrackTagsCallbackData *) userdata;
@@ -1979,6 +2077,7 @@ char **MIX_GetTrackTags(MIX_Track *track, int *count)
 
     GetTrackTagsCallbackData data;
     SDL_zero(data);
+    MIX_MOS_STASH_R13(&data);
     SDL_LockProperties(track->tags);
     SDL_EnumerateProperties(track->tags, GetTrackTagsCallback, &data);
     if (!data.failed) {
@@ -2442,7 +2541,14 @@ bool MIX_StopAllTracks(MIX_Mixer *mixer, Sint64 fade_out_ms)
 
     LockMixer(mixer);  // lock the mixer so all tracks stop at the same time.
 
+#ifdef __MORPHOS__
+    // a stopped callback may destroy the track: take the next one first
+    MIX_Track *next_track = NULL;
+    for (MIX_Track *track = mixer->all_tracks; track != NULL; track = next_track) {
+        next_track = track->next;
+#else
     for (MIX_Track *track = mixer->all_tracks; track != NULL; track = track->next) {
+#endif
         Sint64 fade_out_frames = MIX_TrackMSToFrames(track, fade_out_ms);
         if (fade_out_frames < 0) {
             fade_out_frames = 0;
@@ -2854,7 +2960,11 @@ bool MIX_SetTrack3DPosition(MIX_Track *track, const MIX_Point3D *position)
         track->position3d[0] = track->position3d[1] = track->position3d[2] = 0.0f;
     } else {
         float *tposition3d = track->position3d;
+#ifdef __MORPHOS__
+        if (toggling || ((tposition3d[0] != position->x) || (tposition3d[1] != position->y) || (tposition3d[2] != position->z))) {
+#else
         if (toggling || ((tposition3d[0] != position->x) || (tposition3d[2] != position->y) || (tposition3d[2] != position->z))) {
+#endif
             tposition3d[0] = position->x;
             tposition3d[1] = position->y;
             tposition3d[2] = position->z;
@@ -3097,20 +3207,40 @@ MIX_AudioDecoder * MIX_CreateAudioDecoder_IO(SDL_IOStream *io, bool closeio, SDL
     SDL_DestroyProperties(tmpprops);
 
     if (!audiodecoder->audio) {
+#ifdef __MORPHOS__
+        if (closeio) {
+            SDL_CloseIO(io);  // ours to close, as on the failures above
+        }
+#endif
         SDL_free(audiodecoder);
         return NULL;
     } else if (!audiodecoder->audio->decoder->init_track(audiodecoder->audio->decoder_userdata, io, &audiodecoder->audio->spec, audiodecoder->audio->props, &audiodecoder->track_userdata)) {
         MIX_DestroyAudio(audiodecoder->audio);
+#ifdef __MORPHOS__
+        if (closeio) {
+            SDL_CloseIO(io);  // ours to close, as on the failures above
+        }
+#endif
         SDL_free(audiodecoder);
         return NULL;
     } else if (!audiodecoder->audio->decoder->seek(audiodecoder->track_userdata, 0)) {
         audiodecoder->audio->decoder->quit_track(audiodecoder->track_userdata);
         MIX_DestroyAudio(audiodecoder->audio);
+#ifdef __MORPHOS__
+        if (closeio) {
+            SDL_CloseIO(io);  // ours to close, as on the failures above
+        }
+#endif
         SDL_free(audiodecoder);
         return NULL;
     } else if ((audiodecoder->stream = SDL_CreateAudioStream(&audiodecoder->audio->spec, &audiodecoder->audio->spec)) == NULL) {
         audiodecoder->audio->decoder->quit_track(audiodecoder->track_userdata);
         MIX_DestroyAudio(audiodecoder->audio);
+#ifdef __MORPHOS__
+        if (closeio) {
+            SDL_CloseIO(io);  // ours to close, as on the failures above
+        }
+#endif
         SDL_free(audiodecoder);
         return NULL;
     }
@@ -3200,12 +3330,12 @@ int MIX_DecodeAudio(MIX_AudioDecoder *audiodecoder, void *buffer, int buflen, co
 
 
 // Clamp an IOStream to a subset of its available data.
-static Sint64 MIX_IoClamp_size(void *userdata)
+static Sint64 MIX_MOS_SAVEDS SDLCALL MIX_IoClamp_size(void *userdata)
 {
     return ((const MIX_IoClamp *) userdata)->length;
 }
 
-static Sint64 MIX_IoClamp_seek(void *userdata, Sint64 offset, SDL_IOWhence whence)
+static Sint64 MIX_MOS_SAVEDS SDLCALL MIX_IoClamp_seek(void *userdata, Sint64 offset, SDL_IOWhence whence)
 {
     MIX_IoClamp *clamp = (MIX_IoClamp *) userdata;
 
@@ -3233,7 +3363,7 @@ static Sint64 MIX_IoClamp_seek(void *userdata, Sint64 offset, SDL_IOWhence whenc
     return offset;
 }
 
-static size_t MIX_IoClamp_read(void *userdata, void *ptr, size_t size, SDL_IOStatus *status)
+static size_t MIX_MOS_SAVEDS SDLCALL MIX_IoClamp_read(void *userdata, void *ptr, size_t size, SDL_IOStatus *status)
 {
     MIX_IoClamp *clamp = (MIX_IoClamp *) userdata;
     const size_t remaining = (size_t)(clamp->length - clamp->pos);
@@ -3249,6 +3379,7 @@ SDL_IOStream *MIX_OpenIoClamp(MIX_IoClamp *clamp, SDL_IOStream *io)
 {
     /* Don't use SDL_GetIOSize() here -- see SDL bug #4026 */
     SDL_zerop(clamp);
+    MIX_MOS_STASH_R13(clamp);
     clamp->io = io;
     clamp->start = SDL_TellIO(io);
     clamp->length = SDL_SeekIO(io, 0, SDL_IO_SEEK_END) - clamp->start;

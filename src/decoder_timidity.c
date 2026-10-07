@@ -34,6 +34,8 @@
 //  of the config file to its search path, too.
 #if defined(SDL_PLATFORM_WIN32)
 static const char *timidity_cfgs[] = { "C:\\TIMIDITY\\TIMIDITY.CFG" };
+#elif defined(__MORPHOS__)  // "/etc/..." would be the parent directory there
+static const char *timidity_cfgs[] = { "LIBS:timidity/timidity.cfg" };
 #else  // unix:
 static const char *timidity_cfgs[] = { "/etc/timidity.cfg", "/etc/timidity/timidity.cfg", "/etc/timidity/freepats.cfg" };
 #endif

@@ -491,6 +491,15 @@ static SDL_INLINE char *get_last_dirsep (const char *p) {
   if (!p2) return p1;
   return (p1 > p2)? p1 : p2;
 }
+#elif defined(__MORPHOS__)
+/* "LIBS:timidity.cfg" has no '/' */
+static SDL_INLINE char *get_last_dirsep (const char *p) {
+  char *p1 = SDL_strrchr(p, '/');
+  char *p2 = SDL_strrchr(p, ':');
+  if (!p1) return p2;
+  if (!p2) return p1;
+  return (p1 > p2)? p1 : p2;
+}
 #else /* assumed UNIX-ish : */
 static SDL_INLINE char *get_last_dirsep (const char *p) {
   return SDL_strrchr(p, '/');

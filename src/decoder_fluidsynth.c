@@ -25,6 +25,8 @@
 
 #include "SDL_mixer_internal.h"
 
+MIX_MOS_RESTORE_R13
+
 #include <fluidsynth.h>
 
 #if defined(FLUIDSYNTH_DYNAMIC) && defined(SDL_ELF_NOTE_DLOPEN)
@@ -87,6 +89,7 @@ typedef struct FLUIDSYNTH_AudioData
 
 typedef struct FLUIDSYNTH_TrackData
 {
+    MIX_MOS_R13_FIELD  // first: SetCustomFluidsynthProperties reloads r13 from it
     const FLUIDSYNTH_AudioData *adata;
     fluid_synth_t *synth;
     fluid_settings_t *settings;
@@ -96,11 +99,33 @@ typedef struct FLUIDSYNTH_TrackData
 } FLUIDSYNTH_TrackData;
 
 
+#ifdef __MORPHOS__
+// FluidSynth's default log writes to stderr. In sdl3_mixer.library the
+// (non-resident) FluidSynth code uses the library's template data, where
+// libnix stdio is never set up: stderr is NULL there. Log through SDL.
+static void FLUIDSYNTH_Log(int level, const char *message, void *data)
+{
+    (void)data;
+    if (level <= FLUID_ERR) {
+        SDL_LogError(SDL_LOG_CATEGORY_AUDIO, "FluidSynth: %s", message);
+    } else if (level == FLUID_WARN) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_AUDIO, "FluidSynth: %s", message);
+    } else {
+        SDL_LogDebug(SDL_LOG_CATEGORY_AUDIO, "FluidSynth: %s", message);
+    }
+}
+#endif
+
 static bool SDLCALL FLUIDSYNTH_init(void)
 {
     if (!LoadModule_fluidsynth()) {
         return false;
     }
+#ifdef __MORPHOS__
+    for (int level = FLUID_PANIC; level <= FLUID_DBG; level++) {
+        fluid_set_log_function(level, FLUIDSYNTH_Log, NULL);
+    }
+#endif
 
     // don't let FluidSynth touch hardware directly under any circumstances.
     const char *no_drivers[] = { NULL };
@@ -136,15 +161,18 @@ static double mid_smf_duration_seconds(const Uint8 *buf, size_t len)
     if (SDL_memcmp(buf, "MThd", 4) != 0) return -1.0;
 
     const Uint32 hlen = read_be32_mem(buf + 4);
-    if (hlen < 6 || (8 + hlen) > len) return -1.0;
+    if (hlen < 6 || hlen > len - 8) return -1.0;
 
     const Uint16 ntrks = read_be16_mem(buf + 10);
     const Uint16 div   = read_be16_mem(buf + 12);
     if (ntrks == 0) return -1.0;
-    if (div & 0x8000) return -1.0; /* SMPTE division non gérée */
+    if (div == 0 || (div & 0x8000)) return -1.0; /* no tick division, or SMPTE division (not handled) */
 
     typedef struct { Uint32 tick; double us_per_q; } TempoEvt;
-    TempoEvt tempos[2048];
+    // on the heap: 32 KB would be a lot for the caller's stack
+    const int tempo_max = 2048;
+    TempoEvt *tempos = (TempoEvt *) SDL_malloc(tempo_max * sizeof (*tempos));
+    if (!tempos) return -1.0;
     int tempo_count = 0;
 
     size_t pos = 8 + hlen;
@@ -156,7 +184,7 @@ static double mid_smf_duration_seconds(const Uint8 *buf, size_t len)
 
         const Uint32 tlen = read_be32_mem(buf + pos + 4);
         pos += 8;
-        if (pos + tlen > len) break;
+        if (tlen > len - pos) break;
 
         const Uint8 *trk = buf + pos;
         size_t trkpos = 0;
@@ -184,11 +212,11 @@ static double mid_smf_duration_seconds(const Uint8 *buf, size_t len)
                 const Uint8 type = trk[trkpos++];
                 Uint32 mlen = 0;
                 if (!read_vlq_mem(trk, tlen, &trkpos, &mlen)) break;
-                if (trkpos + mlen > tlen) break;
+                if (mlen > tlen - trkpos) break;
 
                 if (type == 0x51 && mlen == 3) {
                     const Uint32 us = (trk[trkpos] << 16) | (trk[trkpos+1] << 8) | trk[trkpos+2];
-                    if (tempo_count < (int)SDL_arraysize(tempos)) {
+                    if (tempo_count < tempo_max) {
                         tempos[tempo_count].tick = tick;
                         tempos[tempo_count].us_per_q = (double)us;
                         tempo_count++;
@@ -200,6 +228,7 @@ static double mid_smf_duration_seconds(const Uint8 *buf, size_t len)
             } else if (status == 0xF0 || status == 0xF7) {
                 Uint32 slen = 0;
                 if (!read_vlq_mem(trk, tlen, &trkpos, &slen)) break;
+                if (slen > tlen - trkpos) break;
                 trkpos += (size_t)slen;
             } else {
                 const Uint8 hi = status & 0xF0;
@@ -240,6 +269,7 @@ static double mid_smf_duration_seconds(const Uint8 *buf, size_t len)
         total_us += (double)(max_tick - last_tick) * (cur_us_per_q / (double)div);
     }
 
+    SDL_free(tempos);
     return total_us / 1000000.0;
 }
 
@@ -323,7 +353,7 @@ static bool SDLCALL FLUIDSYNTH_init_audio(SDL_IOStream *io, SDL_AudioSpec *spec,
 #ifndef __MORPHOS__
     *duration_frames = -1;  // !!! FIXME: fluid_player_get_total_ticks can give us a time duration, but we don't have a player until we set up the track later.
 #else
-	/* Durée MIDI (SMF) : calcul tempo map ? frames */
+	/* Dur?e MIDI (SMF) : calcul tempo map ? frames */
 	*duration_frames = MIX_DURATION_UNKNOWN;
 
 	size_t midilen = 0;
@@ -333,13 +363,15 @@ static bool SDLCALL FLUIDSYNTH_init_audio(SDL_IOStream *io, SDL_AudioSpec *spec,
 		SDL_free(midibuf);
 
 		if (sec > 0.0) {
-			*duration_frames = (Sint64)SDL_lround(sec * (double)spec->freq);
+			*duration_frames = (Sint64)(sec * (double)spec->freq + 0.5);
 		}
 	}
 
 	/* rewind pour le vrai chargement */
 	if (SDL_SeekIO(io, 0, SDL_IO_SEEK_SET) < 0) {
-		if (sfio && closesfio) SDL_CloseIO(sfio);
+		// sfio was already closed above; adata owns sfdata
+		SDL_free((void *) adata->sfdata);
+		SDL_free(adata);
 		return false;
 	}
 
@@ -408,7 +440,7 @@ static fluid_long_long_t SoundFontTell(void *handle)
     return SDL_TellIO((SDL_IOStream *) handle);
 }
 
-static void SDLCALL SetCustomFluidsynthProperties(void *userdata, SDL_PropertiesID props, const char *name)
+static void MIX_MOS_SAVEDS SDLCALL SetCustomFluidsynthProperties(void *userdata, SDL_PropertiesID props, const char *name)
 {
     FLUIDSYNTH_TrackData *tdata = (FLUIDSYNTH_TrackData *) userdata;
     switch (SDL_GetPropertyType(props, name)) {
@@ -431,6 +463,7 @@ static bool SDLCALL FLUIDSYNTH_init_track(void *audio_userdata, SDL_IOStream *io
     if (!tdata) {
         return false;
     }
+    MIX_MOS_STASH_R13(tdata);
 
     const FLUIDSYNTH_AudioData *adata = (const FLUIDSYNTH_AudioData *) audio_userdata;
     double samplerate = 0.0;
@@ -458,9 +491,10 @@ static bool SDLCALL FLUIDSYNTH_init_track(void *audio_userdata, SDL_IOStream *io
     fluidsynth.fluid_settings_setnum(tdata->settings, "synth.reverb.room-size", 0.6);
 
 #ifdef __MORPHOS__
-	fluidsynth.fluid_settings_setnum(tdata->settings, "synth.polyphony", 128);
-	fluidsynth.fluid_settings_setnum(tdata->settings, "audio.periods", 8);
-	fluidsynth.fluid_settings_setnum(tdata->settings, "audio.period-size", 512);
+	// int settings: fluid_settings_setnum() rejects them
+	fluidsynth.fluid_settings_setint(tdata->settings, "synth.polyphony", 128);
+	fluidsynth.fluid_settings_setint(tdata->settings, "audio.periods", 8);
+	fluidsynth.fluid_settings_setint(tdata->settings, "audio.period-size", 512);
 #endif
 
     // let custom properties override anything we already set internally. You break it, you buy it!

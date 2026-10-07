@@ -31,6 +31,40 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_intrin.h>
 
+#ifdef BUILD_SDL3_MIXER_LIBRARY
+/* sdl3_mixer.library is -mresident32 code with its own r13, and sdl3.library
+   calls callbacks with its own r13. Every callback handed to SDL is
+   MIX_MOS_SAVEDS: it reloads our r13 from the first member of its userdata
+   (MIX_MOS_R13_FIELD), stashed by MIX_MOS_STASH_R13() in a MIX_* call, where
+   r13 is ours. MIX_MOS_RESTORE_R13 defines the __restore_r13 these
+   functions call, local to the file. */
+#define MIX_MOS_SAVEDS __saveds
+#define MIX_MOS_R13_FIELD void *mos_r13;
+#define MIX_MOS_STASH_R13(p) do { register void *r13_ __asm("r13"); (p)->mos_r13 = r13_; } while (0)
+#define MIX_MOS_RESTORE_R13 \
+    __asm("\n" \
+          "	.pushsection \".text\"\n" \
+          "	.align 2\n" \
+          "	.type __restore_r13, @function\n" \
+          "__restore_r13:\n" \
+          "	lwz 13, 0(3)\n" \
+          "	blr\n" \
+          "	.size __restore_r13, . - __restore_r13\n" \
+          "	.popsection\n");
+#else
+#define MIX_MOS_SAVEDS
+#define MIX_MOS_R13_FIELD
+#define MIX_MOS_STASH_R13(p) ((void)0)
+#define MIX_MOS_RESTORE_R13
+#endif
+
+#ifdef USE_SHAREDLIB_OGG
+// sdl3_mixer.library: the libogg calls (Opus, Ogg FLAC) go to vorbisfile.library
+// through the libabox glue. Optional, NULL without it (MorphOS/MIX_startup.c).
+struct Library;
+extern struct Library *VorbisFileBase;
+#endif
+
 #if defined(SDL_SSE_INTRINSICS)  /* if you are on x86 or x86-64, we assume you have SSE1 by now. */
 #define SDL_MIXER_NEED_SCALAR_FALLBACK 0
 #elif defined(SDL_NEON_INTRINSICS) && (defined(__ARM_ARCH) && (__ARM_ARCH >= 8))  /* ARMv8 always has NEON. */
@@ -88,6 +122,7 @@ void MIX_VBAP2D_Init(MIX_VBAP2D *vbap2d, int speaker_count);
 
 typedef struct MIX_IoClamp
 {
+    MIX_MOS_R13_FIELD  // first: the SDL_IOStreamInterface callbacks reload r13 from it
     SDL_IOStream *io;
     Sint64 start;
     Sint64 length;
@@ -137,6 +172,10 @@ struct MIX_Audio
 
 struct MIX_Track
 {
+    MIX_MOS_R13_FIELD  // first: TrackGetCallback and the tag enumerators reload r13 from it
+#ifdef BUILD_SDL3_MIXER_LIBRARY
+    void *mos_r13_pad[3];  // keeps position3d 16-byte aligned
+#endif
     float position3d[4];   // we only need the X, Y, and Z coords, but the 4th element makes this SIMD-friendly.
     MIX_SpatializationMode spatialization_mode;
     float spatialization_panning[2];
@@ -196,6 +235,7 @@ struct MIX_Group
 
 struct MIX_Mixer
 {
+    MIX_MOS_R13_FIELD  // first: MixerCallback and the event watcher reload r13 from it
     SDL_AudioStream *output_stream;
     SDL_AudioSpec spec;
     SDL_AudioDeviceID device_id;  // can be zero if created from MIX_CreateMixer instead of MIX_CreateMixerDevice.

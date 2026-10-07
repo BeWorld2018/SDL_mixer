@@ -1,61 +1,85 @@
-# Makefile for building SDL3_mixer (MorphOS)
+# Makefile to build sdl3_mixer.library for MorphOS (SDL_mixer 3)
 #
-# Requirements:
-#   - SDL 3.4.x or newer
+#   make -f Makefile.mos                  library + glue libs + LVO check
+#   make -f Makefile.mos glue             regenerate fd/clib/MIX_stubs.h + proto/ppcinline
+#                                         (after an SDL_mixer update; needs python3)
+#   make -f Makefile.mos checklvo         every jump table entry vs the fd (run by "all")
+#   make -f Makefile.mos tests            testmixer, testaudiodecoder, testspatialization
+#   make -f Makefile.mos sdk              install headers, fd/proto and glue libs in $(PREFIX)
+#                                         (libSDL3_mixer.a there is the glue, not a static lib)
+#   make -f Makefile.mos install          copy sdl3_mixer.library to LIBS: (on MorphOS)
+#   make -f Makefile.mos static           complete static archive libSDL3_mixer_static.a
+#                                         (SDL3_mixer + every codec library merged in)
 #
-# Outputs:
-#   - libSDL3_mixer_light.a : SDL3_mixer built with the enabled decoders
-#   - libSDL3_mixer.a       : "fat" archive embedding enabled external libraries
-#                             (built via 'ar -M' to avoid object name collisions)
+# Decoders (DECODER_X=0/1 on the command line):
+#   built in        WAV AIFF AU VOC RAW SINEWAVE, MIDI TiMidity (LIBS:timidity)
+#   static .a       FLAC (libFLAC), MP3 (mpg123), Opus (opusfile/opus),
+#                   MOD (xmp), MIDI FluidSynth (fluidsynth_light, C++)
+#   system library  vorbisfile.library: Ogg Vorbis and the libogg calls of
+#                   Opus/Ogg FLAC (libabox glue), opened per opener and
+#                   optional (without it only Ogg formats fail); the static
+#                   archive keeps libvorbisfile.a and libogg.a
 #
-# Default build enables:
-#   - LIBMPG123
-#	- FLAC
-#	- libgme
-#   - libxmp (MOD)
-#   - FluidSynth (MIDI)
-#   - Opus + Ogg
-#   - Vorbisfile + Ogg
+# The .ctdt list (libnix malloc/stdio, C++ constructors) is run per opener
+# by MorphOS/MIX_startup.c.
 #
-# Usage examples:
-#   make -f makefile.mos
-#   make -f makefile.mos DECODER_OPUS=0 DECODER_OGGVORBIS_VORBISFILE=0
-#
-# Install to SDK (/gg/usr/local):
-#   make -f makefile.mos install
+# Glue libraries (MorphOS/devenv/lib):
+#   libSDL3_mixer.a              programs: opens sdl3_mixer.library
+#   libb32/libSDL3_mixer.a       -mresident32 code
+#   libb32/libSDL3_mixer-nc.a    -mresident32, opens nothing (SDL3MixerBase set by hand)
 
+DECODER_AIFF                 ?= 1
+DECODER_AU                   ?= 1
+DECODER_VOC                  ?= 1
+DECODER_WAV                  ?= 1
+DECODER_FLAC                 ?= 1
+DECODER_FLAC_DRFLAC          ?= 0
+DECODER_MP3_MPG123           ?= 1
+DECODER_MP3_DRMP3            ?= 0
+DECODER_OPUS                 ?= 1
+DECODER_OGGVORBIS_VORBISFILE ?= 1
+DECODER_OGGVORBIS_STB        ?= 0
+DECODER_MOD_XMP              ?= 1
+DECODER_MIDI_FLUIDSYNTH      ?= 1
+DECODER_MIDI_TIMIDITY        ?= 1
+DECODER_GME                  ?= 0
+DECODER_WAVPACK              ?= 0
 
-# Decoder feature switches (0/1). Use "make ... DECODER_X=0" to disable features.
-DECODER_AIFF 					?= 1
-DECODER_AU 						?= 1
-DECODER_FLAC_DRFLAC 			?= 0
-DECODER_MP3_DRMP3 				?= 0
-DECODER_FLAC 					?= 1
-DECODER_MIDI_FLUIDSYNTH 		?= 1
-DECODER_GME 					?= 1
-DECODER_MP3_MPG123 				?= 1
-DECODER_OPUS 					?= 1
-DECODER_OGGVORBIS_STB 			?= 0
-DECODER_MIDI_TIMIDITY 			?= 0
-DECODER_VOC 					?= 1
-DECODER_OGGVORBIS_VORBISFILE 	?= 1
-DECODER_WAV 					?= 1
-DECODER_WAVPACK 				?= 0
-DECODER_MOD_XMP 				?= 1
+PREFIX  = /gg/usr/local
+CC      = ppc-morphos-gcc-9
+AR      = ppc-morphos-ar
+RANLIB  = ppc-morphos-ranlib
+NM      = ppc-morphos-nm
+STRIP   = ppc-morphos-strip
+OBJDUMP = ppc-morphos-objdump
+CVI     = /gg/bin/cvinclude.pl
+PYTHON  = python3
 
-CC     = ppc-morphos-gcc-11
-AR     = ppc-morphos-ar
-RANLIB = ppc-morphos-ranlib
-STRIP  = ppc-morphos-strip
+# this makefile as invoked (Makefile.mos / makefile.mos), for the sub-makes
+SELF := $(firstword $(MAKEFILE_LIST))
 
-CDEFS   = -DHAVE_SNPRINTF -DHAVE_UNISTD_H -DHAVE_SETBUF -DHAVE_FORK -DMUSIC_WAV 
-# -D__SDL_DEBUG
-INCLUDE =  -I. -I./include -I./src/ -I./src/dr_libs -I./src/stb_vorbis -I/gg/usr/local/include/SDL3 -I/gg/usr/local/include -I/gg/usr/local/include/opus
-CFLAGS  =  -noixemul -O3 -mcpu=750 -mtune=7450 -Wno-pointer-sign -fno-strict-aliasing -Wall -ffast-math $(INCLUDE) 
+MODE ?= shared
 
-LIBS_EXT = -L/gg/usr/local/lib
-LIBS_EXT_END = -lm
-LIBS_SDL3 = -L/gg/usr/local/lib -noixemul -lSDL3 -lc -lm -lpthread -lGL
+ifeq ($(MODE),shared)
+OBJDIR   = build-mos/shared
+MODEDEFS = -mresident32 -DBUILD_SDL3_MIXER_LIBRARY
+else
+OBJDIR   = build-mos/static
+MODEDEFS =
+endif
+
+# Library version = SDL_mixer version (MorphOS/MIX_mosversion.h)
+MIXVERSION_H = include/SDL3_mixer/SDL_mixer.h
+MIXVERSION   = $(shell awk '$$2 == "SDL_MIXER_MAJOR_VERSION" { ma = $$3 } $$2 == "SDL_MIXER_MINOR_VERSION" { mi = $$3 } $$2 == "SDL_MIXER_MICRO_VERSION" { mc = $$3 } END { printf "-DMIX_LIB_MAJOR=%d -DMIX_LIB_MINOR=%d -DMIX_LIB_MICRO=%d -DMIX_LIB_REVISION=%d", ma, mi, mc, mi * 100 + mc }' $(MIXVERSION_H))
+
+GLUEDEFS = -DAROS_ALMOST_COMPATIBLE -DUSE_INLINE_STDARG
+CDEFS    = $(GLUEDEFS) -DHAVE_SNPRINTF -DHAVE_UNISTD_H -DHAVE_SETBUF
+
+INCLUDE  = -I./include -I./src -I./src/dr_libs -I./src/stb_vorbis \
+           -I$(PREFIX)/include/SDL3 -I$(PREFIX)/include -I$(PREFIX)/include/opus
+CFLAGS   = -noixemul -O3 -mcpu=750 -mtune=7450 -Wall -Wno-pointer-sign -fno-strict-aliasing \
+           $(MODEDEFS) $(INCLUDE)
+DEPFLAGS = -MMD -MP
 
 SOURCES = \
 	src/decoder_aiff.c \
@@ -80,165 +104,221 @@ SOURCES = \
 	src/SDL_mixer_metadata_tags.c \
 	src/SDL_mixer_spatialization.c
 
-# Avoid linking libogg multiple times when both Opus and Vorbisfile are enabled
-NEED_OGG = 0
+# codec libraries: LIBS_EXT for the library link, MERGE_LIBS for the static archive
+LIBS_EXT   =
+MERGE_LIBS =
+NEED_OGG   = 0
 
+ifeq ($(DECODER_AIFF),1)
+CDEFS += -DDECODER_AIFF
+endif
+ifeq ($(DECODER_AU),1)
+CDEFS += -DDECODER_AU
+endif
+ifeq ($(DECODER_VOC),1)
+CDEFS += -DDECODER_VOC
+endif
+ifeq ($(DECODER_WAV),1)
+CDEFS += -DDECODER_WAV
+endif
 ifeq ($(DECODER_FLAC),1)
-LIBS_EXT 	+= -lFLAC
-CDEFS		+= -DDECODER_FLAC_LIBFLAC
+CDEFS      += -DDECODER_FLAC_LIBFLAC
+LIBS_EXT   += -lFLAC
+MERGE_LIBS += $(PREFIX)/lib/libFLAC.a
+NEED_OGG    = 1
 endif
 ifeq ($(DECODER_FLAC_DRFLAC),1)
-LIBS_EXT 	+= 
-CDEFS		+= -DDECODER_FLAC_DRFLAC
-endif
-ifeq ($(DECODER_MIDI_FLUIDSYNTH),1)
-LIBS_EXT 	+= -lfluidsynth
-CDEFS		+= -DDECODER_MIDI_FLUIDSYNTH
-endif
-ifeq ($(DECODER_GME),1)
-LIBS_EXT 	+= -lgme -lz_shared
-CDEFS		+= -DDECODER_GME
-endif
-ifeq ($(DECODER_WAVPACK),1)
-CDEFS		+= -DDECODER_WAVPACK
+CDEFS += -DDECODER_FLAC_DRFLAC
 endif
 ifeq ($(DECODER_MP3_MPG123),1)
-LIBS_EXT 	+= -lmpg123
-CDEFS		+= -DDECODER_MP3_MPG123
+CDEFS      += -DDECODER_MP3_MPG123
+LIBS_EXT   += -lmpg123
+MERGE_LIBS += $(PREFIX)/lib/libmpg123.a
 endif
 ifeq ($(DECODER_MP3_DRMP3),1)
-LIBS_EXT 	+= 
-CDEFS		+= -DDECODER_MP3_DRMP3
-endif
-ifeq ($(DECODER_MOD_XMP),1)
-LIBS_EXT 	+= -lxmp
-CDEFS		+= -DDECODER_MOD_XMP
+CDEFS += -DDECODER_MP3_DRMP3
 endif
 ifeq ($(DECODER_OPUS),1)
-LIBS_EXT 	+= -lopusfile -lopus
-CDEFS		+= -DDECODER_OPUS
-NEED_OGG 	 = 1
+CDEFS      += -DDECODER_OPUS
+LIBS_EXT   += -lopusfile -lopus
+MERGE_LIBS += $(PREFIX)/lib/libopusfile.a $(PREFIX)/lib/libopus.a
+NEED_OGG    = 1
 endif
-ifeq ($(DECODER_MIDI_TIMIDITY),1)
-CDEFS		+= -DDECODER_MIDI_TIMIDITY -I./src/timidity
-SOURCES 	+= 	src/timidity/common.c src/timidity/instrum.c src/timidity/mix.c src/timidity/output.c \
-				src/timidity/playmidi.c src/timidity/readmidi.c src/timidity/resample.c \
-				src/timidity/tables.c src/timidity/timidity.c
+ifeq ($(DECODER_OGGVORBIS_VORBISFILE),1)
+CDEFS += -DDECODER_OGGVORBIS_VORBISFILE
+ifeq ($(MODE),shared)
+CDEFS += -DUSE_SHAREDLIB_VORBIS
+else
+MERGE_LIBS += $(PREFIX)/lib/libvorbisfile.a $(PREFIX)/lib/libvorbis.a
+NEED_OGG    = 1
+endif
 endif
 ifeq ($(DECODER_OGGVORBIS_STB),1)
-CDEFS		+= -DDECODER_OGGVORBIS_STB
+CDEFS += -DDECODER_OGGVORBIS_STB
 endif
-ifeq ($(DECODER_OGGVORBIS_VORBISFILE),1)
-LIBS_EXT 	+= -lvorbisfile -lvorbis
-CDEFS		+= -DDECODER_OGGVORBIS_VORBISFILE
-NEED_OGG 	 = 1
-endif
-
-ifeq ($(NEED_OGG),1)
-LIBS_EXT += -logg
-endif
-
-LIBS_EXT += $(LIBS_EXT_END)
-
-CFLAGS += $(CDEFS)
-
-ECHE = echo -e
-BOLD = \033[1m
-NRML = \033[22m
-
-COMPILING = @$(ECHE) "compiling $(BOLD)$@$(NRML)..."
-LINKING = @$(ECHE) "linking $(BOLD)$@$(NRML)..."
-ARCHIVING = @$(ECHE) "archiving $(BOLD)$@$(NRML)..."
-
-# Build the "fat" archive by merging the light library plus enabled external libs
-# (the existence check provides a clean error message if a required .a is missing)
-TARGET  = libSDL3_mixer_light.a
-TARGETF = libSDL3_mixer.a
-
-# External libraries to merge into the full archive (conditional)
-MERGE_LIBS =
-
-ifeq ($(DECODER_MIDI_FLUIDSYNTH),1)
-MERGE_LIBS += /gg/usr/local/lib/libfluidsynth.a
-endif
-
 ifeq ($(DECODER_MOD_XMP),1)
-MERGE_LIBS += /gg/usr/local/lib/libxmp.a
+CDEFS      += -DDECODER_MOD_XMP
+LIBS_EXT   += -lxmp
+MERGE_LIBS += $(PREFIX)/lib/libxmp.a
 endif
-
-ifeq ($(DECODER_OPUS),1)
-MERGE_LIBS += \
-	/gg/usr/local/lib/libopusfile.a \
-	/gg/usr/local/lib/libopus.a \
-	/gg/usr/local/lib/libogg.a
+ifeq ($(DECODER_MIDI_FLUIDSYNTH),1)
+CDEFS      += -DDECODER_MIDI_FLUIDSYNTH
+LIBS_EXT   += -lfluidsynth_light
+MERGE_LIBS += $(PREFIX)/lib/libfluidsynth_light.a
 endif
-
-ifeq ($(DECODER_OGGVORBIS_VORBISFILE),1)
-MERGE_LIBS += \
-	/gg/usr/local/lib/libvorbisfile.a \
-	/gg/usr/local/lib/libvorbis.a \
-	/gg/usr/local/lib/libogg.a
+ifeq ($(DECODER_MIDI_TIMIDITY),1)
+CDEFS   += -DDECODER_MIDI_TIMIDITY
+INCLUDE += -I./src/timidity
+SOURCES += src/timidity/common.c src/timidity/instrum.c src/timidity/mix.c src/timidity/output.c \
+           src/timidity/playmidi.c src/timidity/readmidi.c src/timidity/readsbk.c \
+           src/timidity/resample.c src/timidity/sndfont.c src/timidity/tables.c \
+           src/timidity/timidity.c
 endif
-
-ifeq ($(DECODER_FLAC),1)
-MERGE_LIBS += /gg/usr/local/lib/libFLAC.a
-endif
-
 ifeq ($(DECODER_GME),1)
-MERGE_LIBS += /gg/usr/local/lib/libgme.a
+CDEFS      += -DDECODER_GME
+LIBS_EXT   += -lgme -lz_shared
+MERGE_LIBS += $(PREFIX)/lib/libgme.a
+endif
+ifeq ($(DECODER_WAVPACK),1)
+CDEFS += -DDECODER_WAVPACK
+endif
+# libogg (Opus, Ogg FLAC): in the library, the ogg_* calls go to the
+# system vorbisfile.library through the libabox glue (VorbisFileBase)
+ifeq ($(NEED_OGG),1)
+ifeq ($(MODE),shared)
+CDEFS      += -DUSE_SHAREDLIB_OGG
+else
+MERGE_LIBS += $(PREFIX)/lib/libogg.a
+endif
 endif
 
-ifeq ($(DECODER_AAC),1)
-MERGE_LIBS += /gg/usr/local/lib/libfaad.a
-endif
+CFLAGS += $(CDEFS) $(MIXVERSION)
 
-ifeq ($(DECODER_MP3_MPG123),1)
-MERGE_LIBS += /gg/usr/local/lib/libmpg123.a
-endif
+# libb32/libSDL3-nc.a: SDL calls through SDL3Base (opened per opener in
+# MorphOS/MIX_startup.c) and the varargs wrappers (SDL_SetError...).
+LIBS = -L$(PREFIX)/lib $(LIBS_EXT) -lSDL3-nc -lstdc++ -lm
 
-OBJECTS = $(SOURCES:.c=.o)
+AMIGADATE = $(shell date +"%-d.%-m.%Y")
 
-all: $(TARGET) $(TARGETF) testaudiodecoder testmixer testspatialization
+COMPILING = @echo "compiling $@..."
+LINKING   = @echo "linking $@..."
+ARCHIVING = @echo "archiving $@..."
 
-install: all
-	cp -r include/SDL3_mixer /gg/usr/local/include/
-	cp $(TARGET) /gg/usr/local/lib/
-	cp libSDL3_mixer.a /gg/usr/local/lib/
+LIBRARY  = sdl3_mixer.library
+INTERNAL = $(OBJDIR)/libSDL3_mixer_lib.a
+STATIC   = libSDL3_mixer_static.a
 
-$(TARGET): $(OBJECTS)
+OBJECTS     = $(patsubst %.c,$(OBJDIR)/%.o,$(SOURCES))
+COREOBJECTS = $(patsubst %.c,$(OBJDIR)/%.o,MorphOS/MIX_library.c MorphOS/MIX_startup.c MorphOS/MIX_stubs.c)
+DEPS        = $(OBJECTS:.o=.d) $(COREOBJECTS:.o=.d)
+
+.PHONY: all sdklibs glue headers checklvo tests sdk install static clean dump
+
+all: $(LIBRARY) sdklibs checklvo
+	@echo All done
+
+# objects follow the DECODER_* switches and flags of this makefile
+$(OBJECTS) $(COREOBJECTS) $(OBJDIR)/MorphOS/MIX_ctorsend.o: $(SELF)
+
+$(OBJDIR)/%.o: %.c
+	@mkdir -p $(dir $@)
+	$(COMPILING)
+	@$(CC) $(CFLAGS) $(DEPFLAGS) -o $@ -c $<
+
+# The library glue isn't resident code: it runs before r13 is set up.
+$(OBJDIR)/MorphOS/MIX_library.o: MorphOS/MIX_library.c
+	@mkdir -p $(dir $@)
+	$(COMPILING)
+	@$(CC) -noixemul -mcpu=750 -Wall -fno-strict-aliasing $(INCLUDE) $(GLUEDEFS) $(MIXVERSION) \
+		-D__AMIGADATE__=\"$(AMIGADATE)\" $(DEPFLAGS) -o $@ -c $<
+
+$(INTERNAL): $(OBJECTS)
 	$(ARCHIVING)
-	$(AR) crvs $@ $^
+	@rm -f $@
+	@$(AR) crs $@ $^
 
-$(TARGETF): $(TARGET)
+$(LIBRARY): $(INTERNAL) $(COREOBJECTS) $(OBJDIR)/MorphOS/MIX_ctorsend.o
+	$(LINKING)
+	@$(CC) -noixemul -nostartfiles -mresident32 -Wl,-Map=sdl3_mixer.map \
+		$(COREOBJECTS) -o $@.db -L$(OBJDIR) -lSDL3_mixer_lib $(LIBS) $(OBJDIR)/MorphOS/MIX_ctorsend.o
+	@$(STRIP) -o $@ --remove-section=.comment $@.db
+
+sdklibs:
+	@$(MAKE) --no-print-directory -C MorphOS/devenv all
+
+# Functions the objects define: the others become ##private (LIB_Unsupported)
+glue: $(INTERNAL)
+	$(NM) -g --defined-only $(INTERNAL) | awk 'NF == 3 && ($$2 == "T" || $$2 == "W") { print $$3 }' | sort -u > mix_defined.txt
+	$(PYTHON) build-scripts/gen_morphos_lib.py --defined mix_defined.txt
+	@rm -f mix_defined.txt $(OBJDIR)/MorphOS/MIX_library.o $(OBJDIR)/MorphOS/MIX_stubs.o
+	@$(MAKE) --no-print-directory -f $(SELF) headers
+
+headers:
+	@echo Creating proto/ppcinline headers
+	@mkdir -p MorphOS/sdk/proto MorphOS/sdk/ppcinline
+	@$(CVI) --fd=MorphOS/sdk/fd/sdl3_mixer_lib.fd --clib=MorphOS/sdk/clib/sdl3_mixer_protos.h --proto=MorphOS/sdk/proto/sdl3_mixer.h
+	@$(CVI) --fd=MorphOS/sdk/fd/sdl3_mixer_lib.fd --clib=MorphOS/sdk/clib/sdl3_mixer_protos.h --inline=MorphOS/sdk/ppcinline/sdl3_mixer.h
+	@$(PYTHON) build-scripts/gen_morphos_lib.py --fix-inline MorphOS/sdk/ppcinline/sdl3_mixer.h
+
+checklvo: $(LIBRARY)
+	@$(PYTHON) build-scripts/check_morphos_lvo.py $(LIBRARY).db
+
+sdk: all
+	mkdir -p $(PREFIX)/include/SDL3_mixer $(PREFIX)/lib/libb32
+	mkdir -p $(addprefix $(PREFIX)/include/,fd clib proto ppcinline)
+	cp -f include/SDL3_mixer/*.h $(PREFIX)/include/SDL3_mixer/
+	cp -f MorphOS/sdk/fd/sdl3_mixer_lib.fd $(PREFIX)/include/fd/
+	cp -f MorphOS/sdk/clib/sdl3_mixer_protos.h $(PREFIX)/include/clib/
+	cp -f MorphOS/sdk/proto/sdl3_mixer.h $(PREFIX)/include/proto/
+	cp -f MorphOS/sdk/ppcinline/sdl3_mixer.h $(PREFIX)/include/ppcinline/
+	cp -f MorphOS/devenv/lib/libSDL3_mixer.a $(PREFIX)/lib/libSDL3_mixer.a
+	cp -f MorphOS/devenv/lib/libb32/libSDL3_mixer.a $(PREFIX)/lib/libb32/libSDL3_mixer.a
+	cp -f MorphOS/devenv/lib/libb32/libSDL3_mixer-nc.a $(PREFIX)/lib/libb32/libSDL3_mixer-nc.a
+
+# No dependency: run on MorphOS after building on the cross-compiler, it
+# must not try to rebuild (timestamps, .d paths, python3 for checklvo)
+install:
+	@test -f $(LIBRARY) || { echo "$(LIBRARY) not built: make -f Makefile.mos first"; exit 1; }
+	cp $(LIBRARY) LIBS:
+	-flushlib $(LIBRARY)
+
+# Complete static archive: our objects (not resident) + every codec .a,
+# merged with 'ar -M' so same-named members of different libraries stay
+static:
+	@$(MAKE) --no-print-directory -f $(SELF) MODE=static $(STATIC)
+
+ifeq ($(MODE),static)
+$(STATIC): $(OBJECTS)
 	@for L in $(MERGE_LIBS); do test -f $$L || { echo "Missing library: $$L"; exit 1; }; done
-	@rm -f $@ merge.mri
-	@echo "CREATE $@" > merge.mri
-	@echo "ADDLIB $(TARGET)" >> merge.mri
-	@for L in $(MERGE_LIBS); do echo "ADDLIB $$L" >> merge.mri; done
-	@echo "SAVE" >> merge.mri
-	@echo "END" >> merge.mri
-	$(AR) -M < merge.mri
-	$(RANLIB) $@
+	$(ARCHIVING)
+	@rm -f $@ $(OBJDIR)/objs.a merge.mri
+	@$(AR) crs $(OBJDIR)/objs.a $(OBJECTS)
+	@{ echo "CREATE $@"; echo "ADDLIB $(OBJDIR)/objs.a"; \
+	   for L in $(sort $(MERGE_LIBS)); do echo "ADDLIB $$L"; done; echo "SAVE"; echo "END"; } > merge.mri
+	@$(AR) -M < merge.mri
+	@$(RANLIB) $@
 	@rm -f merge.mri
+endif
 
-# Example programs (stripped to reduce size)
-define LINK_TEST
-	$(CC) -O3 -Wall -noixemul -DHAVE_SIGNAL_H $< -o $@ $(INCLUDE) -L. -lSDL3_mixer -lstdc++ -lz_shared $(LIBS_SDL3)
-	$(STRIP) --strip-unneeded $@
-endef
+# Test programs, linked against the glue libraries (sdl3.library SDK installed)
+APPS     = testmixer testaudiodecoder testspatialization
+APPFLAGS = -noixemul -O2 -Wall -I./include -I$(PREFIX)/include -DHAVE_SIGNAL_H
+APPLIBS  = -LMorphOS/devenv/lib -lSDL3_mixer -L$(PREFIX)/lib -lSDL3 -lGL
 
-# Test programs (upstream SDL_mixer tests)
-testaudiodecoder: test/testaudiodecoder.c
-	$(LINK_TEST)
+tests: $(APPS)
 
-testmixer: test/testmixer.c
-	$(LINK_TEST)
-
-testspatialization: test/testspatialization.c
-	$(LINK_TEST)
+$(APPS): %: test/%.c sdklibs
+	$(LINKING)
+	@$(CC) $(APPFLAGS) $< -o $@ $(APPLIBS)
+	@$(STRIP) --strip-unneeded $@
 
 clean:
-	rm -f $(TARGET) $(TARGETF) $(OBJECTS) *.db *.s testaudiodecoder testmixer testspatialization
-	
+	rm -rf build-mos
+	rm -f $(LIBRARY) $(LIBRARY).db $(LIBRARY).s sdl3_mixer.map $(STATIC) merge.mri
+	rm -f $(APPS)
+	@$(MAKE) --no-print-directory -C MorphOS/devenv clean
+
 dump:
-	ppc-morphos-objdump --disassemble-all --reloc playmus >playmus.s
+	$(OBJDUMP) --disassemble-all --reloc $(LIBRARY).db >$(LIBRARY).s
+
+-include $(DEPS)

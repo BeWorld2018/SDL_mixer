@@ -121,6 +121,11 @@ static bool SDLCALL AU_init_audio(SDL_IOStream *io, SDL_AudioSpec *spec, SDL_Pro
                 return SDL_SetError("AU: Unsupported .au encoding");
         }
 
+#ifdef __MORPHOS__
+        if (hdr.channels == 0) {  // divisions by zero below
+            return SDL_SetError("AU: no channels");
+        }
+#endif
         spec->freq = (int) hdr.sample_rate;
         spec->channels = (int) hdr.channels;
 
@@ -153,7 +158,11 @@ static bool SDLCALL AU_init_audio(SDL_IOStream *io, SDL_AudioSpec *spec, SDL_Pro
 
         SDL_zero(hdr);
 
+#ifdef __MORPHOS__
+        spec->format = SDL_AUDIO_F32;  // decoded through the AU_ENC_ULAW_8 path, which outputs floats
+#else
         spec->format = SDL_AUDIO_S16;
+#endif
         spec->freq = 8000;
         spec->channels = 1;
 

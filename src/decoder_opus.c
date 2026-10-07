@@ -70,11 +70,19 @@ typedef struct OPUS_TrackData
     int current_bitstream;
     Sint64 current_iteration;
     Sint64 current_iteration_frames;
+#ifdef __MORPHOS__
+    bool mos_loop_done;  // the finite loop was played: don't enter it again
+#endif
 } OPUS_TrackData;
 
 
 static bool SDLCALL OPUS_init(void)
 {
+#ifdef USE_SHAREDLIB_OGG
+    if (!VorbisFileBase) {
+        return SDL_SetError("Opus needs vorbisfile.library (libogg)");
+    }
+#endif
     return LoadModule_opus();
 }
 
@@ -187,7 +195,11 @@ static bool SDLCALL OPUS_init_audio(SDL_IOStream *io, SDL_AudioSpec *spec, SDL_P
     opus.op_free(of);  // done with this instance. Tracks will maintain their own OggOpusFile object.
 
     if (adata->loop.active) {
+        #ifdef __MORPHOS__
+        *duration_frames = (adata->loop.count < 0) ? MIX_DURATION_INFINITE : (full_length + (adata->loop.len * (adata->loop.count - 1)));
+#else
         *duration_frames = (adata->loop.count < 0) ? MIX_DURATION_INFINITE : (full_length * adata->loop.count);
+#endif
     } else {
         *duration_frames = full_length;
     }
@@ -255,7 +267,11 @@ static bool SDLCALL OPUS_decode(void *track_userdata, SDL_AudioStream *stream)
     }
 
     const MIX_OggLoop *loop = &tdata->adata->loop;
+#ifdef __MORPHOS__
+    if ((tdata->current_iteration < 0) && !tdata->mos_loop_done) {
+#else
     if (tdata->current_iteration < 0) {
+#endif
         if (loop->active && ((tdata->current_iteration_frames + amount) >= loop->start)) {
             tdata->current_iteration = 0;  // we've hit the start of the loop point.
             tdata->current_iteration_frames = (tdata->current_iteration_frames - loop->start);  // so adding `amount` corrects this later.
@@ -291,6 +307,9 @@ static bool SDLCALL OPUS_decode(void *track_userdata, SDL_AudioStream *stream)
                 }
             } else {
                 tdata->current_iteration = -1;
+#ifdef __MORPHOS__
+                tdata->mos_loop_done = true;
+#endif
             }
             tdata->current_iteration_frames = 0;
         }
@@ -310,11 +329,18 @@ static bool SDLCALL OPUS_seek(void *track_userdata, Uint64 frame)
     const MIX_OggLoop *loop = &tdata->adata->loop;
     Sint64 final_iteration = -1;
     Sint64 final_iteration_frames = 0;
+#ifdef __MORPHOS__
+    bool past_loop = false;
+#endif
 
     // frame has hit the loop point?
     if (loop->active && ((Sint64)frame >= loop->start)) {
         // figure out the _actual_ frame in the vorbis file we're aiming for.
+#ifdef __MORPHOS__
+        if ((loop->count < 0) || ((Sint64)frame < (loop->start + (loop->len * loop->count)))) {  // literally in the loop right now.
+#else
         if ((loop->count < 0) || ((Sint64)frame < (loop->len * loop->count))) {  // literally in the loop right now.
+#endif
             frame -= loop->start;  // make logical frame index relative to start of loop.
             final_iteration = (loop->count < 0) ? 0 : (frame / loop->len);  // decide what iteration of the loop we're on (stays at zero for infinite loops).
             frame %= loop->len;  // drop iterations so we're an offset into the loop.
@@ -322,7 +348,12 @@ static bool SDLCALL OPUS_seek(void *track_userdata, Uint64 frame)
             frame += loop->start;  // convert back into physical frame index.
         } else {  // past the loop point?
             SDL_assert(loop->count > 0);  // can't be infinite loop if we passed it.
+#ifdef __MORPHOS__
+            frame -= loop->len * (loop->count - 1);  // the body is played count times, once is physical
+            past_loop = true;
+#else
             frame -= loop->len * loop->count;  // drop the iterations to get the physical frame index.
+#endif
         }
     }
 
@@ -332,6 +363,12 @@ static bool SDLCALL OPUS_seek(void *track_userdata, Uint64 frame)
         return set_op_error("op_pcm_seek", rc);
     }
 
+#ifdef __MORPHOS__
+    if ((final_iteration < 0) && !past_loop) {
+        final_iteration_frames = (Sint64) frame;  // before the loop: decode counts frames up to loop->start
+    }
+    tdata->mos_loop_done = past_loop;
+#endif
     tdata->current_iteration = final_iteration;
     tdata->current_iteration_frames = final_iteration_frames;
 

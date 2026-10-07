@@ -111,6 +111,10 @@ static bool ParseVocFile(SDL_IOStream *io, VOC_AudioData *adata, SDL_PropertiesI
     VOC_Block *loop_start = NULL;
     int loop_start_loop_count = 0;
     Sint64 loop_frames = 0;
+#ifdef __MORPHOS__
+    size_t mos_loop_index = 0;       // the LOOP block (adata->blocks moves when it grows)
+    Sint64 mos_pre_loop_total = 0;   // total_frames before an infinite loop
+#endif
     SDL_AudioSpec original_spec;
     SDL_AudioSpec current_spec;
     int text_count = 0;
@@ -202,6 +206,11 @@ static bool ParseVocFile(SDL_IOStream *io, VOC_AudioData *adata, SDL_PropertiesI
                     return SDL_SetError("Corrupt VOC data");
                 }
 
+#ifdef __MORPHOS__
+                if ((channels == 0) || (rate32 == 0)) {  // framelen 0: division by zero below
+                    return SDL_SetError("Corrupt VOC data");
+                }
+#endif
                 current_spec.freq = (int) rate32;
                 current_spec.channels = (int) channels;
                 current_spec.format = (codec == 0) ? SDL_AUDIO_U8 : SDL_AUDIO_S16LE;
@@ -270,6 +279,9 @@ static bool ParseVocFile(SDL_IOStream *io, VOC_AudioData *adata, SDL_PropertiesI
                 }
 
                 int loop_count = -1;
+#ifdef __MORPHOS__
+                mos_pre_loop_total = (total_frames != -1) ? (total_frames + loop_frames) : -1;
+#endif
                 if (iterations == 0xFFFF) {
                     total_frames = -1;   // it's infinite.
                 } else {
@@ -286,6 +298,9 @@ static bool ParseVocFile(SDL_IOStream *io, VOC_AudioData *adata, SDL_PropertiesI
                 if (!loop_start) {
                     return false;
                 }
+#ifdef __MORPHOS__
+                mos_loop_index = adata->num_blocks - 1;
+#endif
                 loop_start_loop_count = loop_start->loop_count;
                 break;
             }
@@ -299,6 +314,15 @@ static bool ParseVocFile(SDL_IOStream *io, VOC_AudioData *adata, SDL_PropertiesI
                     return SDL_SetError("VOC has a LOOPEND without a matching LOOP");
                 }
 
+#ifdef __MORPHOS__
+                if (loop_frames == 0) {  // no audio in the loop: decode and seek would spin on it forever
+                    adata->blocks[mos_loop_index].loop_count = 1;
+                    loop_start_loop_count = 1;
+                    if (total_frames == -1) {
+                        total_frames = mos_pre_loop_total;
+                    }
+                }
+#endif
                 VOC_Block *block = AddVocLoopBlock(adata, -2);
                 if (!block) {
                     return false;
@@ -343,6 +367,9 @@ static bool ParseVocFile(SDL_IOStream *io, VOC_AudioData *adata, SDL_PropertiesI
                 char *value = (char *) SDL_malloc(blen);
                 if (value) {  // oh well if we ran out of memory.
                     if (SDL_ReadIO(io, value, blen) != blen) {
+#ifdef __MORPHOS__
+                        SDL_free(value);
+#endif
                         return false;
                     }
                     char *utf8 = SDL_iconv_string("UTF-8", "ISO-8859-1", value, blen);
@@ -382,7 +409,11 @@ static bool ParseVocFile(SDL_IOStream *io, VOC_AudioData *adata, SDL_PropertiesI
         total_frames += loop_frames;
     }
 
+#ifdef __MORPHOS__
+    *duration_frames = (total_frames == -1) ? MIX_DURATION_INFINITE : total_frames;  // -1 is MIX_DURATION_UNKNOWN
+#else
     *duration_frames = total_frames;
+#endif
 
     return true;
 }
@@ -497,8 +528,14 @@ static bool SDLCALL VOC_decode(void *userdata, SDL_AudioStream *stream)
     }
 
     if (block->iopos == 0) {  // zero position means write silence (you can't have a data block at position 0 because of headers, etc).
+#ifdef __MORPHOS__
+        // a NULL plane is refused on a mono stream: the silence would be dropped
+        SDL_memset(buffer, SDL_GetSilenceValueForFormat(block->spec.format), (size_t) (frames * framesize));
+        SDL_PutAudioStreamData(stream, buffer, (int) (frames * framesize));
+#else
         const void *nullp = NULL;
         SDL_PutAudioStreamPlanarData(stream, &nullp, 1, (int) frames);   // push silence to the stream.
+#endif
         tdata->frame_pos += frames;
     } else {
         const size_t total = (size_t) (frames * framesize);

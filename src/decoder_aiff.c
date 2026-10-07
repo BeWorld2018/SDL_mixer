@@ -90,7 +90,12 @@ static int FetchXLaw(AIFF_TrackData *tdata, Uint8 *buffer, int buflen, const flo
     if (length % tdata->adata->framesize != 0) {
         length -= length % tdata->adata->framesize;
     }
+#ifdef __MORPHOS__
+    // expanded in place from the end: out[i] covers bytes 4i..4i+3, past buffer[i]
+    float *out = (float *) buffer;
+#else
     float *out = (float *) &buffer[(length - 1) * 4];
+#endif
     for (int i = length - 1; i >= 0; i--) {
         out[i] = lut[buffer[i]];
     }
@@ -376,6 +381,10 @@ static bool AIFF_init_audio_internal(AIFF_AudioData *adata, SDL_IOStream *io, SD
         return SDL_SetError("AIFF: Bad AIFF/AIFF-C file (no COMM chunk)");
     } else if (is_AIFC && !found_FVER) {
         return SDL_SetError("AIFF: Bad AIFF-C file (no FVER chunk)");
+#ifdef __MORPHOS__
+    } else if ((channels == 0) || (samplesize < 8)) {  // framesize 0: divisions by zero later
+        return SDL_SetError("AIFF: no channels or bad sample size");
+#endif
     }
 
     adata->framesize = channels * (samplesize / 8);
@@ -471,6 +480,14 @@ static bool AIFF_init_audio_internal(AIFF_AudioData *adata, SDL_IOStream *io, SD
         return SDL_SetError("AIFF: unsupported data format");
     }
 
+#ifdef __MORPHOS__
+    if ((adata->fetch == FetchULaw) || (adata->fetch == FetchALaw)) {
+        // 1 byte per sample whatever sampleSize says (16 for AIFC ULAW/ALAW)
+        adata->framesize = channels;
+        adata->stop = adata->start + ((Sint64) channels * numsamples);
+    }
+#endif
+
     spec->channels = (Uint8) channels;
     adata->decoded_framesize = SDL_AUDIO_FRAMESIZE(*spec);
 
@@ -538,6 +555,20 @@ static bool SDLCALL AIFF_decode(void *track_userdata, SDL_AudioStream *stream)
     if (mod) {
         buflen -= mod;
     }
+#ifdef __MORPHOS__
+    // stop at the end of the sound data: a chunk after SSND ("ID3 "...) isn't audio
+    const Sint64 pos = SDL_TellIO(tdata->io);
+    if (pos >= tdata->adata->stop) {
+        return false;
+    } else if (pos >= 0) {
+        const Sint64 frames_left = (tdata->adata->stop - pos) / tdata->adata->framesize;
+        if (frames_left <= 0) {
+            return false;
+        } else if (frames_left < (buflen / tdata->adata->decoded_framesize)) {
+            buflen = (int) frames_left * tdata->adata->decoded_framesize;
+        }
+    }
+#endif
     const int br = tdata->adata->fetch(tdata, buffer, buflen);  // this will deal with different formats that might need decompression or conversion.
     if (br <= 0) {
         return false;

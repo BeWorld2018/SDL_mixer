@@ -158,7 +158,15 @@ static void MIX_VBAP2D_CalculateGains(const MIX_VBAP2D *vbap2d, float source_ang
 
     const float source_x = SDL_cosf(source_angle);
     const float source_y = SDL_sinf(source_angle);
+#ifdef __MORPHOS__
+    // an angle of exactly 2pi (or NaN) would give span 36 (or garbage): one past buckets[]
+    int span = MIX_VBAP2D_angle_to_span(source_angle);
+    if ((span < 0) || (span >= MIX_VBAP2D_RESOLUTION)) {
+        span = 0;
+    }
+#else
     const int span = MIX_VBAP2D_angle_to_span(source_angle);
+#endif
     const int speaker_pair = vbap2d->buckets[span].speaker_pair;
     int vbap_speakers[2];
 

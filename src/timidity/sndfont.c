@@ -731,7 +731,11 @@ static Sint32 calc_root_pitch(Layer *lay, SFInfo *sf, SampleList *sp)
 	sample = &sf->sampleinfo[lay->val[SF_sampleId]];
 
 	root = sample->originalPitch;
+#ifdef __MORPHOS__
+	tune = (Sint8) sample->pitchCorrection;  // SF2 chPitchCorrection is a signed CHAR (cents)
+#else
 	tune = sample->pitchCorrection;
+#endif
 	if (sf->version == 1) {
 		if (lay->set[SF_samplePitch]) {
 			root = lay->val[SF_samplePitch] / 100;
